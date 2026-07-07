@@ -909,11 +909,11 @@ Task status values are `TODO`, `IN PROGRESS`, `BLOCKED`, and `DONE`.
 #### FW-065 — Implement factory reset
 
 - **Depends on:** FW-024, FW-034, FW-052, FW-064.
-- **Create:** `app/FactoryReset`.
-- **Implement:** Deliberate physical confirmation, customer-data erase, immutable identity policy, and provisioning reboot.
+- **Create:** `app/FactoryReset` (or embedded in `Application.cpp` via BOOT button).
+- **Implement:** Deliberate physical confirmation (2s long press on BOOT/GPIO 0), customer-data erase (WiFi credentials via ProvisioningService), immutable identity policy, and provisioning reboot.
 - **Pass:** TC-RESET-001 passes.
 - **FSD:** FR-RESET-001.
-- **Status:** TODO.
+- **Status:** DONE.
 
 ### 25.8 Milestone G — MQTT and Cloud Synchronization
 

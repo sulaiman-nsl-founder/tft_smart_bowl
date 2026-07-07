@@ -129,6 +129,9 @@ void Application::setup() {
     // 12. Mark boot as successful — reset the failure counter
     Platform::ResetInfo::markBootSuccess();
     LOG_INFO("BOOT", 10, "Boot complete. System ready.");
+
+    // 13. Setup BOOT button (GPIO 0) for factory reset
+    pinMode(0, INPUT_PULLUP);
 }
 
 void Application::loop() {
@@ -171,6 +174,29 @@ void Application::loop() {
                 App::Ui::UiManager::getInstance().setScreen(&App::Ui::ProvisioningScreen::getInstance());
             }
         }
+    }
+
+    // Check BOOT button (GPIO 0) for Factory Reset / WiFi Reset
+    static uint32_t bootBtnPressTime = 0;
+    static bool bootBtnWasPressed = false;
+    static bool bootBtnLongPressFired = false;
+    
+    bool bootBtnIsPressed = (digitalRead(0) == LOW);
+    uint32_t now = millis();
+    
+    if (bootBtnIsPressed && !bootBtnWasPressed) {
+        bootBtnPressTime = now;
+        bootBtnWasPressed = true;
+        bootBtnLongPressFired = false;
+    } else if (!bootBtnIsPressed && bootBtnWasPressed) {
+        bootBtnWasPressed = false;
+    }
+    
+    if (bootBtnIsPressed && !bootBtnLongPressFired && (now - bootBtnPressTime >= 2000)) { // 2 seconds for long press
+        bootBtnLongPressFired = true;
+        LOG_WARN("APP", 200, "Factory reset triggered via BOOT button");
+        Services::ProvisioningService::getInstance().resetCredentials();
+        App::Ui::UiManager::getInstance().setScreen(&App::Ui::ProvisioningScreen::getInstance());
     }
 }
 
