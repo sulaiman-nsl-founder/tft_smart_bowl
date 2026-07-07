@@ -142,7 +142,51 @@ Synchronizes:
 
 ## MQTT Communication
 
-MQTT is used for lightweight communication.
+The SMART-BOWL communicates with the cloud using MQTT over TLS (MQTTS) to ensure secure and encrypted communication.
+
+Authentication is certificate-based, providing a secure connection between the device and the MQTT broker.
+
+### MQTT Features
+
+- Secure MQTT over TLS
+- Certificate-based authentication
+- Automatic reconnect
+- Publish/Subscribe architecture
+- Offline message queue
+- QoS support where required
+- Keep Alive monitoring
+- Connection status monitoring
+
+### Subscribe Topics
+
+The firmware subscribes to topics for:
+
+- Food Menu Updates
+- Device Configuration
+- OTA Update Notifications
+- Remote Commands
+- Device Settings
+
+### Publish Topics
+
+The firmware publishes:
+
+- Current Food Weight
+- Food Consumption Records
+- Battery Status
+- Device Health
+- Device Online Status
+- Error Logs
+- Diagnostics Information
+
+### Security
+
+- TLS encrypted communication
+- Root CA certificate verification
+- Server certificate validation
+- Secure MQTT client authentication
+- Automatic certificate loading during boot
+- Connection retry with exponential backoff
 
 ### Subscribe Topics
 
@@ -158,6 +202,26 @@ MQTT is used for lightweight communication.
 - Battery Status
 - Device Health
 - Event Logs
+
+---
+
+
+
+# Cloud Communication
+
+SMART-BOWL uses different communication protocols depending on the type of data being transferred.
+
+| Data Type | Protocol |
+|-----------|----------|
+| Telemetry | MQTT over TLS |
+| Configuration | MQTT over TLS |
+| Food Menu | MQTT over TLS |
+| OTA Notification | MQTT over TLS |
+| Device Commands | MQTT over TLS |
+| Image Upload | HTTPS |
+| Firmware Download | HTTPS |
+
+MQTT is used for lightweight real-time communication, while HTTPS is used for transferring large binary data such as camera images and firmware packages.
 
 ---
 
@@ -247,6 +311,22 @@ Physical buttons allow:
 - Calibration
 - Settings
 - Diagnostics
+
+---
+
+## AI Assistant Notes
+
+When contributing to this project:
+
+- Use MQTT over TLS for all messaging.
+- Never use unsecured MQTT connections.
+- Image uploads must always use HTTPS.
+- Do not store food menus locally unless explicitly required.
+- Configuration should persist in NVS.
+- Offline data should be stored on the SD card and synchronized automatically once connectivity is restored.
+- Follow a modular architecture with clear separation between hardware drivers, services, business logic, and UI.
+- Prefer FreeRTOS tasks, queues, timers, and event groups over blocking loops.
+- Keep all code production-ready and scalable.
 
 ---
 

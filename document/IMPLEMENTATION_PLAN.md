@@ -12,6 +12,8 @@ This SOP defines how the SMART-BOWL firmware shall be designed, implemented, int
 
 The plan deliberately builds the reliable offline bowl first. Cloud, camera, and OTA features are added only after measurement, storage, and recovery behavior are trustworthy.
 
+For day-to-day programming, execute the tasks in Section 25 in numerical order. The earlier phase gates remain the release-control layer; Section 25 is the code-level work queue.
+
 ## 2. Rules of Execution
 
 1. Treat `FSD.md` as the product requirement baseline.
@@ -536,3 +538,562 @@ Approvers:
 ```
 
 Blank fields mean Gate G0 has not passed.
+
+## 25. Sequential Programming Task Backlog
+
+### 25.1 How to execute a task
+
+For each task:
+
+1. Confirm every dependency is marked complete.
+2. Create a branch such as `task/fw-010-project-layout`.
+3. Implement only the stated scope.
+4. Add or update the listed tests.
+5. Build both debug and release environments.
+6. Run the task acceptance check on hardware when required.
+7. Record the result, board serial number, and evidence link.
+8. Update `TRACEABILITY.md`.
+9. Commit using the task ID, for example `FW-010: add project layout`.
+10. Mark the task complete only after review.
+
+Task status values are `TODO`, `IN PROGRESS`, `BLOCKED`, and `DONE`.
+
+### 25.2 Milestone A — Project Skeleton
+
+#### FW-001 — Freeze confirmed pin assignments
+
+- **Depends on:** Hardware review.
+- **Create/update:** `include/board/Pins.h`, `document/FSD.md`.
+- **Implement:** TFT CS 47, DC 14, RST 21, MOSI 38, SCLK 39; MCP23017 buttons GPA0–2 and LEDs GPB0–2.
+- **Do not implement:** Camera PCLK until its GPIO14 conflict is resolved.
+- **Pass:** Pin definitions match the approved schematic and contain compile-time duplicate-pin checks.
+- **Status:** DONE.
+
+#### FW-002 — Resolve remaining hardware blockers
+
+- **Depends on:** FW-001.
+- **Output:** Approved ADC, I2C, SD, camera, battery, and interrupt assignments.
+- **Pass:** No active peripheral shares an incompatible pin or voltage level.
+- **Status:** BLOCKED pending hardware approval.
+
+#### FW-010 — Create firmware directory structure
+
+- **Depends on:** None.
+- **Create:** `src/app`, `src/drivers`, `src/platform`, `src/protocols`, `src/services`, and matching `include` folders.
+- **Implement:** Minimal `setup()` and `loop()` that call an `Application` object.
+- **Pass:** Project builds without the sample `myFunction`.
+- **Status:** DONE.
+
+#### FW-011 — Configure PlatformIO environments
+
+- **Depends on:** FW-010.
+- **Update:** `platformio.ini`.
+- **Implement:** Common settings plus debug, release, native-test, and embedded-test environments; pin dependency versions.
+- **Pass:** Debug and release builds succeed from a clean checkout.
+- **Status:** DONE.
+
+#### FW-012 — Add build information
+
+- **Depends on:** FW-011.
+- **Create:** `include/platform/BuildInfo.h`, build script if required.
+- **Implement:** Semantic version, Git revision, build date, environment, and hardware revision.
+- **Pass:** Firmware prints the correct build identity at boot.
+- **Status:** DONE.
+
+#### FW-013 — Add core types and result codes
+
+- **Depends on:** FW-010.
+- **Create:** `include/core/Result.h`, `Units.h`, `Errors.h`.
+- **Implement:** Typed grams, milliseconds, voltage, error category, and non-exception result handling.
+- **Pass:** Unit tests cover success and error propagation.
+- **Status:** DONE.
+
+#### FW-014 — Add logging service
+
+- **Depends on:** FW-013.
+- **Create:** `services/Logger`.
+- **Implement:** Timestamp, severity, module, event code, and redacted context.
+- **Pass:** Logs never print registered secret fields.
+- **FSD:** NFR-OBS-001, NFR-SEC-002.
+- **Status:** DONE.
+
+#### FW-015 — Add test and CI baseline
+
+- **Depends on:** FW-011.
+- **Create:** native sample test, embedded smoke test, CI workflow.
+- **Implement:** Build, format, static-check, and test jobs.
+- **Pass:** CI passes from a clean clone and fails for a deliberately failing test.
+- **Status:** DONE.
+
+### 25.3 Milestone B — Safe Board Bring-up
+
+#### FW-020 — Implement safe boot GPIO initialization
+
+- **Depends on:** FW-001, FW-010, FW-014.
+- **Create:** `drivers/GpioSafeState`.
+- **Implement:** LEDs, buzzer, backlight, camera power, and IR controls start inactive.
+- **Pass:** Power-up produces no unintended output pulse.
+- **FSD:** FR-BOOT-001.
+- **Status:** DONE.
+
+#### FW-021 — Implement reset reason and watchdog
+
+- **Depends on:** FW-020.
+- **Create:** `platform/ResetInfo`, `services/Supervisor`.
+- **Implement:** Reset-reason capture, task heartbeats, watchdog registration, and safe-mode counter.
+- **Pass:** A deliberately stalled test task resets the device and records the reason.
+- **FSD:** NFR-REL-002.
+- **Status:** DONE.
+
+#### FW-022 — Implement I2C bus manager
+
+- **Depends on:** FW-002, FW-020.
+- **Create:** `drivers/I2cBus`.
+- **Implement:** Initialization, mutex, bounded transaction, scan, error counters, and stuck-bus recovery.
+- **Pass:** Bus recovers after SDA is temporarily held low.
+- **Status:** DONE.
+
+#### FW-023 — Implement MCP23017 driver
+
+- **Depends on:** FW-022.
+- **Create:** `drivers/Mcp23017`.
+- **Implement:** Address probe, direction, pull-up, input, output, interrupt, and fault state.
+- **Pass:** Register read/write test passes after reboot and simulated I2C failure.
+- **Status:** DONE.
+
+#### FW-024 — Implement buttons
+
+- **Depends on:** FW-023.
+- **Create:** `drivers/Buttons`.
+- **Implement:** BUTTON_1/2/3 on GPA0/1/2 with debounce, press, release, repeat, and long press.
+- **Pass:** Each physical press creates exactly one normal press event.
+- **Status:** DONE.
+
+#### FW-025 — Implement indicator LEDs
+
+- **Depends on:** FW-023.
+- **Create:** `drivers/Leds`.
+- **Implement:** LED_1/2/3 on GPB0/1/2, default off, steady and timed patterns.
+- **Pass:** Button-to-LED hardware test maps 1→1, 2→2, and 3→3.
+- **Status:** DONE.
+
+#### FW-026 — Implement SPI bus manager
+
+- **Depends on:** FW-001, FW-020.
+- **Create:** `drivers/SpiBus`.
+- **Implement:** GPIO38 MOSI, GPIO39 SCLK, optional GPIO40 MISO, mutex, and per-device transaction settings.
+- **Pass:** Concurrent test clients cannot overlap chip-select transactions.
+- **Status:** DONE.
+
+#### FW-027 — Bring up ST7735
+
+- **Depends on:** FW-026.
+- **Create:** `drivers/TftDisplay`.
+- **Implement:** CS47, DC14, RST21, initialization, rotation, clear, text, rectangles, and test pattern.
+- **Pass:** Color bars and orientation labels display correctly for 30 minutes.
+- **Status:** DONE.
+
+#### FW-028 — Add board self-test
+
+- **Depends on:** FW-021–FW-027.
+- **Create:** `app/BoardSelfTest`.
+- **Implement:** I2C probe, MCP test, button/LED test, TFT test, memory report, and structured result.
+- **Pass:** Self-test identifies each disconnected device without hanging.
+- **Status:** DONE.
+
+### 25.4 Milestone C — Weight Measurement
+
+#### FW-030 — Implement NAU7802 low-level driver
+
+- **Depends on:** FW-002, FW-022.
+- **Create:** `drivers/Nau7802`.
+- **Implement:** Reset, probe, channel/gain/rate setup, internal calibration, ready timeout, and raw read.
+- **Pass:** Raw readings change consistently when load is applied; missing ADC returns a bounded error.
+- **Status:** DONE.
+
+#### FW-031 — Implement sample filtering
+
+- **Depends on:** FW-030.
+- **Create:** `services/WeightFilter`.
+- **Implement:** Outlier rejection and approved low-pass/moving filter without dynamic allocation in the sample loop.
+- **Pass:** Recorded-noise unit tests meet the approved response/noise limit.
+- **Status:** DONE.
+
+#### FW-032 — Implement stability detection
+
+- **Depends on:** FW-031.
+- **Create:** `services/StabilityDetector`.
+- **Implement:** Window, variation threshold, minimum duration, and hysteresis.
+- **Pass:** Stable, disturbed, drifting, and step-change traces classify correctly.
+- **FSD:** FR-WGT-002.
+- **Status:** DONE.
+
+#### FW-033 — Implement calibration model
+
+- **Depends on:** FW-030, FW-013.
+- **Create:** `services/Calibration`.
+- **Implement:** Raw zero, raw span, reference grams, factor, validation, version, and CRC.
+- **Pass:** Known raw values convert to expected grams; invalid span is rejected.
+- **Status:** DONE.
+
+#### FW-034 — Persist calibration safely
+
+- **Depends on:** FW-033.
+- **Create:** `services/ConfigStore`.
+- **Implement:** Two-copy copy/validate/commit storage with schema version and CRC.
+- **Pass:** Power interruption during save leaves one valid calibration record.
+- **FSD:** FR-CAL-001, NFR-REL-001.
+- **Status:** TODO.
+
+#### FW-035 — Implement tare and span procedures
+
+- **Depends on:** FW-032–FW-034, FW-024.
+- **Create:** `app/CalibrationController`.
+- **Implement:** Stable empty check, tare, reference entry, stable span, validation, commit, and audit event.
+- **Pass:** TC-CAL-001 passes with approved reference weights.
+- **Status:** TODO.
+
+#### FW-036 — Implement weight service
+
+- **Depends on:** FW-031–FW-034.
+- **Create:** `services/WeightService`.
+- **Implement:** Periodic sampling task and immutable raw/filtered/grams/stability/fault snapshot.
+- **Pass:** UI or logging load does not violate the approved sample timing.
+- **FSD:** FR-WGT-001, NFR-PERF-002.
+- **Status:** TODO.
+
+#### FW-037 — Display live calibrated weight
+
+- **Depends on:** FW-027, FW-036.
+- **Create:** First operational dashboard.
+- **Implement:** Grams, stability, stale/fault state, and calibration warning.
+- **Pass:** The first milestone works completely without Wi-Fi.
+- **Status:** TODO.
+
+### 25.5 Milestone D — UI and Feeding Logic
+
+#### FW-040 — Implement UI framework
+
+- **Depends on:** FW-024, FW-027.
+- **Create:** `app/ui/Screen`, `UiManager`, widgets, theme.
+- **Implement:** Screen lifecycle, focus, navigation, dialogs, and bounded partial redraw.
+- **Pass:** Button input receives visible acknowledgement within 150 ms.
+- **FSD:** NFR-PERF-001.
+- **Status:** DONE.
+
+#### FW-041 — Implement required screens
+
+- **Depends on:** FW-040.
+- **Implement:** Boot, Provisioning, Dashboard, Food, Weight, Feeding, Settings, Calibration, Diagnostics, Error, and OTA screens.
+- **Pass:** TC-UI-001 passes, including degraded states and non-color-only alerts.
+- **FSD:** FR-UI-001, NFR-ACC-001.
+- **Status:** DONE.
+
+#### FW-042 — Implement event bus
+
+- **Depends on:** FW-013.
+- **Create:** `services/EventBus`.
+- **Implement:** Typed fixed-size events, queue depth, overflow metrics, and ownership rules.
+- **Pass:** Critical queue overflow is explicit; replaceable telemetry can coalesce.
+- **Status:** DONE.
+
+#### FW-043 — Implement bowl state machine
+
+- **Depends on:** FW-032, FW-036, FW-042.
+- **Create:** `app/BowlStateMachine`.
+- **Implement:** Unavailable, Empty, Food Present, Consuming, Leftover, and Aborted with hysteresis.
+- **Pass:** Synthetic and recorded trace tests cover every state and transition.
+- **Status:** DONE.
+
+#### FW-044 — Implement food model and selection
+
+- **Depends on:** FW-040, FW-042.
+- **Create:** `app/FoodMenu`, `app/FoodSelection`.
+- **Implement:** Versioned menu model, limits, selection, and no-menu state.
+- **Pass:** Valid menu selections persist for the active session; malformed entries are rejected.
+- **Status:** DONE.
+
+#### FW-045 — Implement feeding session
+
+- **Depends on:** FW-043, FW-044.
+- **Create:** `app/FeedingSession`.
+- **Implement:** UUID, event sequence, initial/current/leftover/consumed grams, duration, abort, and reboot-recovery model.
+- **Pass:** TC-FEED-001 passes and consumed grams never becomes negative.
+- **FSD:** FR-FEED-001.
+- **Status:** DONE.
+
+### 25.6 Milestone E — SD and Offline Operation
+
+#### FW-050 — Bring up microSD
+
+- **Depends on:** FW-002, FW-026.
+- **Create:** `drivers/SdCard`.
+- **Implement:** Mount, unmount, card identity, capacity, free space, bounded file operations, and fault state.
+- **Pass:** Reinsert, missing-card, full-card, and read-only tests do not block core weighing.
+- **Status:** DONE.
+
+#### FW-051 — Implement atomic file records
+
+- **Depends on:** FW-050.
+- **Create:** `services/RecordStore`.
+- **Implement:** Versioned header, length, CRC, temporary write, flush, and rename.
+- **Pass:** Every simulated power-cut point yields a valid record or a detectable temporary file.
+- **Status:** DONE.
+
+#### FW-052 — Implement offline event queue
+
+- **Depends on:** FW-042, FW-051.
+- **Create:** `services/OfflineQueue`.
+- **Implement:** Enqueue, peek, acknowledge, replay ordering, sequence recovery, limits, and telemetry coalescing.
+- **Pass:** TC-OFF-001 passes across reboot and repeated acknowledgement loss.
+- **FSD:** FR-OFF-001.
+- **Status:** DONE.
+
+#### FW-053 — Persist feeding sessions
+
+- **Depends on:** FW-045, FW-051.
+- **Implement:** Session snapshots and event records before external acknowledgement.
+- **Pass:** Reboot during each feeding state recovers or explicitly closes the session.
+- **Status:** DONE.
+
+#### FW-054 — Implement storage pressure policy
+
+- **Depends on:** FW-052.
+- **Implement:** Reserve threshold, uploaded-media cleanup, warnings, and critical-event protection.
+- **Pass:** Full storage never silently deletes an unacknowledged critical event.
+- **Status:** DONE.
+
+### 25.7 Milestone F — Provisioning and Connectivity
+
+#### FW-060 — Implement Wi-Fi manager
+
+- **Depends on:** FW-034, FW-042.
+- **Create:** `services/WifiManager`.
+- **Implement:** Station connect, state events, RSSI, bounded exponential backoff, jitter, and credential change.
+- **Pass:** TC-WIFI-001 passes during AP loss and recovery.
+- **Status:** TODO.
+
+#### FW-061 — Implement trusted time
+
+- **Depends on:** FW-060.
+- **Create:** `services/TimeService`.
+- **Implement:** SNTP synchronization, clock-valid state, monotonic uptime, and timestamp conversion.
+- **Pass:** TLS/cloud operations remain blocked until wall-clock validity is established.
+- **Status:** TODO.
+
+#### FW-062 — Implement BLE provisioning transport
+
+- **Depends on:** FW-034, FW-042.
+- **Create:** `protocols/BleProvisioning`.
+- **Implement:** Setup identifier, authenticated session, bounded fields, Wi-Fi transfer, status, timeout, and shutdown.
+- **Pass:** Invalid or oversized requests cause no credential change.
+- **Status:** TODO.
+
+#### FW-063 — Implement device registration and ownership
+
+- **Depends on:** FW-060–FW-062 and approved backend contract.
+- **Create:** `services/DeviceRegistration`.
+- **Implement:** Registration request, identity response, retry, and physical confirmation for ownership replacement.
+- **Pass:** New, repeated, interrupted, and unauthorized registration tests pass.
+- **Status:** TODO.
+
+#### FW-064 — Implement credential and certificate store
+
+- **Depends on:** FW-034 and approved security design.
+- **Create:** `services/SecureStore`.
+- **Implement:** Unique identity, private-key protection, certificate states, renewal metadata, and redacted access.
+- **Pass:** No secret is readable through logs or diagnostic export.
+- **FSD:** NFR-SEC-002.
+- **Status:** TODO.
+
+#### FW-065 — Implement factory reset
+
+- **Depends on:** FW-024, FW-034, FW-052, FW-064.
+- **Create:** `app/FactoryReset`.
+- **Implement:** Deliberate physical confirmation, customer-data erase, immutable identity policy, and provisioning reboot.
+- **Pass:** TC-RESET-001 passes.
+- **FSD:** FR-RESET-001.
+- **Status:** TODO.
+
+### 25.8 Milestone G — MQTT and Cloud Synchronization
+
+#### FW-070 — Implement versioned JSON codecs
+
+- **Depends on:** FW-013.
+- **Create:** `protocols/messages`.
+- **Implement:** Telemetry, event, status, command, acknowledgement, menu, calibration, and OTA schemas with strict size/type validation.
+- **Pass:** Round-trip, malformed, missing, oversized, and future-version unit tests pass.
+- **FSD:** NFR-MAINT-002.
+- **Status:** TODO.
+
+#### FW-071 — Implement MQTT TLS connection
+
+- **Depends on:** FW-060, FW-061, FW-064.
+- **Create:** `protocols/MqttClient`.
+- **Implement:** Certificate validation, base topic, last will, keepalive, session policy, and reconnect backoff.
+- **Pass:** Invalid, expired, and untrusted certificates are rejected.
+- **FSD:** FR-MQTT-001, NFR-SEC-001.
+- **Status:** TODO.
+
+#### FW-072 — Implement MQTT publisher and replay
+
+- **Depends on:** FW-052, FW-070, FW-071.
+- **Create:** `services/CloudSync`.
+- **Implement:** Publish status, telemetry, events, calibration, acknowledgements, and queued replay.
+- **Pass:** Reconnect does not create duplicate logical events.
+- **Status:** TODO.
+
+#### FW-073 — Implement command dispatcher
+
+- **Depends on:** FW-070–FW-072.
+- **Create:** `services/CommandDispatcher`.
+- **Implement:** Authorization, schema checks, message-ID deduplication, cached result, and audit event.
+- **Pass:** Repeated command ID never repeats a side effect.
+- **Status:** TODO.
+
+#### FW-074 — Implement cloud food menu
+
+- **Depends on:** FW-044, FW-052, FW-070–FW-073.
+- **Implement:** Download, validate, atomically cache, activate, expire, and fall back to last valid menu.
+- **Pass:** TC-MENU-001 passes.
+- **FSD:** FR-MENU-001.
+- **Status:** TODO.
+
+### 25.9 Milestone H — Camera and HTTPS
+
+#### FW-080 — Resolve and implement camera pins
+
+- **Depends on:** FW-002.
+- **Update:** `Pins.h`, FSD, approved schematic.
+- **Implement:** Sensor probe, power, reset, clock, data pins, and safe shutdown.
+- **Pass:** No conflict remains with TFT_DC GPIO14.
+- **Status:** BLOCKED pending camera PCLK assignment.
+
+#### FW-081 — Implement camera capture service
+
+- **Depends on:** FW-080.
+- **Create:** `drivers/Camera`, `services/CameraService`.
+- **Implement:** PSRAM-aware buffers, timeout, JPEG validation, cooldown, and burst limit.
+- **Pass:** Repeated capture does not leak heap/PSRAM.
+- **Status:** TODO.
+
+#### FW-082 — Persist captured images
+
+- **Depends on:** FW-051, FW-081.
+- **Implement:** Temporary file, validation, atomic rename, session/event naming, and metadata record.
+- **Pass:** Power loss never produces a falsely valid image record.
+- **Status:** TODO.
+
+#### FW-083 — Implement HTTPS client
+
+- **Depends on:** FW-060, FW-061, FW-064.
+- **Create:** `protocols/HttpsClient`.
+- **Implement:** TLS validation, bounded streaming, connect/read timeouts, response-size limit, and token-redacted errors.
+- **Pass:** Bad certificate, timeout, and oversized-response tests fail safely.
+- **Status:** TODO.
+
+#### FW-084 — Implement image upload workflow
+
+- **Depends on:** FW-072, FW-082, FW-083.
+- **Create:** `services/ImageUploader`.
+- **Implement:** Obtain authorization, upload, metadata confirmation, MQTT blob event, retry, and retention.
+- **Pass:** TC-CAM-001 passes and duplicate retries remain idempotent.
+- **FSD:** FR-CAM-001.
+- **Status:** TODO.
+
+### 25.10 Milestone I — Power, Diagnostics, and OTA
+
+#### FW-090 — Implement battery monitor
+
+- **Depends on:** FW-002, FW-042.
+- **Create:** `drivers/BatteryAdc`, `services/PowerManager`.
+- **Implement:** Approved divider conversion, calibration, percentage, charging, low state, and filtering.
+- **Pass:** TC-PWR-001 passes against calibrated meter readings.
+- **FSD:** FR-PWR-001.
+- **Status:** BLOCKED pending battery design.
+
+#### FW-091 — Implement diagnostics
+
+- **Depends on:** FW-021, FW-028, FW-036, FW-050, FW-060, FW-071, FW-081, FW-090.
+- **Create:** `services/Diagnostics`.
+- **Implement:** Health states, memory/stacks, reset, buses, peripherals, queue, connectivity, battery, and sanitized export.
+- **Pass:** TC-DIAG-001 passes with zero secret leakage.
+- **FSD:** FR-DIAG-001.
+- **Status:** TODO.
+
+#### FW-092 — Implement signed OTA manifest
+
+- **Depends on:** FW-064, FW-070, approved security contract.
+- **Create:** `services/OtaManifest`.
+- **Implement:** Model, version, size, digest, signature, URL, policy, and anti-rollback validation.
+- **Pass:** Invalid signature, digest, model, or downgrade is rejected before writing firmware.
+- **Status:** TODO.
+
+#### FW-093 — Implement OTA download and install
+
+- **Depends on:** FW-083, FW-090, FW-092, approved partition table.
+- **Create:** `services/OtaManager`.
+- **Implement:** Preconditions, inactive-partition streaming, progress, reboot, self-test, mark-valid, and rollback.
+- **Pass:** TC-OTA-001 passes including power interruption.
+- **FSD:** FR-OTA-001.
+- **Status:** TODO.
+
+### 25.11 Milestone J — Release Hardening
+
+#### FW-100 — Complete requirement traceability
+
+- **Depends on:** FW-001–FW-093.
+- **Create/update:** `document/TRACEABILITY.md`.
+- **Implement:** Map every FR/NFR to design, source file, test, result, and evidence.
+- **Pass:** All 26 current FSD requirement IDs have complete links.
+- **Status:** TODO.
+
+#### FW-101 — Run full regression and soak
+
+- **Depends on:** FW-100.
+- **Implement:** Unit, embedded, integration, power-loss, storage-full, reconnect-storm, memory-pressure, and minimum 24-hour soak tests.
+- **Pass:** No Critical/High defect, leak, reboot loop, or silent critical-event loss.
+- **Status:** TODO.
+
+#### FW-102 — Validate factory workflow
+
+- **Depends on:** FW-101.
+- **Implement:** Flash, identity, security provisioning, self-test, calibration, result upload, and label traceability.
+- **Pass:** Multiple blank devices complete the process with unique identities and reproducible results.
+- **Status:** TODO.
+
+#### FW-103 — Produce release candidate
+
+- **Depends on:** FW-102.
+- **Output:** Signed binary, manifest, hashes, map, symbols, dependencies, release notes, test evidence, and rollback image.
+- **Pass:** Gate G12 approval and successful pilot rollout.
+- **Status:** TODO.
+
+## 26. Recommended First Programming Sequence
+
+Start with this exact order:
+
+```text
+FW-001 -> FW-010 -> FW-011 -> FW-012 -> FW-013 -> FW-014 -> FW-015
+       -> FW-020 -> FW-021 -> FW-022 -> FW-023 -> FW-024 -> FW-025
+       -> FW-026 -> FW-027 -> FW-028
+       -> FW-030 -> FW-031 -> FW-032 -> FW-033 -> FW-034 -> FW-035
+       -> FW-036 -> FW-037
+```
+
+Stop at FW-001 if the schematic does not confirm the supplied TFT and MCP23017 mapping. Stop before FW-030 until the NAU7802 wiring and voltage levels are approved. Completion of FW-037 is the first useful firmware release: safe boot, working buttons/LEDs, live calibrated TFT weight, explicit faults, and calibration retained across power loss.
+
+## 27. Task Progress Board
+
+| Milestone | Task range | Exit demonstration |
+|---|---|---|
+| A | FW-001–FW-015 | Reproducible firmware skeleton and CI |
+| B | FW-020–FW-028 | Safe board self-test with TFT/buttons/LEDs |
+| C | FW-030–FW-037 | Calibrated live weight without cloud |
+| D | FW-040–FW-045 | Local food selection and feeding session |
+| E | FW-050–FW-054 | Power-safe offline records |
+| F | FW-060–FW-065 | Secure device provisioning |
+| G | FW-070–FW-074 | MQTT synchronization and cloud menu |
+| H | FW-080–FW-084 | Durable camera capture and upload |
+| I | FW-090–FW-093 | Power diagnostics and signed OTA |
+| J | FW-100–FW-103 | Production release candidate |
