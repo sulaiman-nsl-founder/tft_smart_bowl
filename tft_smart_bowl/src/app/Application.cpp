@@ -13,6 +13,7 @@
 #include "app/ui/UiManager.h"
 #include "app/ui/DashboardScreen.h"
 #include "app/ui/ProvisioningScreen.h"
+#include "app/ui/CalibrationScreen.h"
 #include "app/BowlStateMachine.h"
 #include "app/FeedingSession.h"
 #include "app/FoodMenu.h"
@@ -20,6 +21,10 @@
 #include "drivers/SdCard.h"
 #include "services/OfflineQueue.h"
 #include "services/ProvisioningService.h"
+#include "services/SecureStore.h"
+#include "services/CloudProvisioning.h"
+#include "services/CloudSync.h"
+#include "protocols/MqttClient.h"
 #include "platform/BuildInfo.h"
 
 // Simple embedded unit tests to verify core classes on target hardware
@@ -119,6 +124,12 @@ void Application::setup() {
     App::FeedingSession::getInstance().begin();
     Services::ProvisioningService::getInstance().begin();
     
+    // Cloud and MQTT services (Temporarily disabled per user request until base firmware is perfect)
+    // Services::SecureStore::getInstance().begin();
+    // Services::CloudProvisioning::getInstance().begin();
+    // Protocols::MqttClient::getInstance().begin();
+    // Services::CloudSync::getInstance().begin();
+    
     // 10. Start UI Manager and set initial screen
     App::Ui::UiManager::getInstance().begin();
     App::Ui::UiManager::getInstance().setScreen(&App::Ui::ProvisioningScreen::getInstance());
@@ -176,6 +187,28 @@ void Application::loop() {
         }
     }
 
+    // Detect simultaneous long press of Button 1 and Button 3
+    static uint32_t settingsPressTime = 0;
+    static bool settingsComboWasPressed = false;
+    static bool settingsComboFired = false;
+    
+    bool btn1 = Drivers::Buttons::getInstance().isPressed(Drivers::ButtonId::Button1);
+    bool btn3 = Drivers::Buttons::getInstance().isPressed(Drivers::ButtonId::Button3);
+    
+    if (btn1 && btn3) {
+        if (!settingsComboWasPressed) {
+            settingsPressTime = millis();
+            settingsComboWasPressed = true;
+            settingsComboFired = false;
+        } else if (!settingsComboFired && (millis() - settingsPressTime >= 2000)) {
+            settingsComboFired = true;
+            LOG_INFO("APP", 201, "Entering Settings Menu (Calibration)");
+            App::Ui::UiManager::getInstance().setScreen(&App::Ui::CalibrationScreen::getInstance());
+        }
+    } else {
+        settingsComboWasPressed = false;
+    }
+
     // Check BOOT button (GPIO 0) for Factory Reset / WiFi Reset
     static uint32_t bootBtnPressTime = 0;
     static bool bootBtnWasPressed = false;
@@ -197,6 +230,10 @@ void Application::loop() {
         LOG_WARN("APP", 200, "Factory reset triggered via BOOT button");
         Services::ProvisioningService::getInstance().resetCredentials();
         App::Ui::UiManager::getInstance().setScreen(&App::Ui::ProvisioningScreen::getInstance());
+        
+        // Wait a short moment to ensure UI updates and logs are flushed before reboot
+        delay(500);
+        ESP.restart();
     }
 }
 

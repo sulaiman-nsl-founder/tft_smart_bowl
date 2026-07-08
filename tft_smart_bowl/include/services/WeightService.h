@@ -51,6 +51,16 @@ public:
     bool isCalibrated() const;
 
     /**
+     * @brief Get the current filtered raw ADC value (for calibration display).
+     */
+    int32_t getRawFiltered() const;
+
+    /**
+     * @brief Get the current calibration state machine state.
+     */
+    CalibState getCalibState() const;
+
+    /**
      * @brief Request a Tare operation (zero the scale).
      * The service will wait for stability before applying the tare.
      */

@@ -117,6 +117,14 @@ bool WeightService::isCalibrated() const {
     return _calibration.isValid();
 }
 
+int32_t WeightService::getRawFiltered() const {
+    return _currentRaw;
+}
+
+WeightService::CalibState WeightService::getCalibState() const {
+    return _calibState;
+}
+
 void WeightService::requestTare() {
     if (_calibState != CalibState::Idle) return;
     LOG_INFO("WGT", 605, "Tare requested. Waiting for stability...");

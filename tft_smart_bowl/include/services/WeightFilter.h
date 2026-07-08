@@ -42,8 +42,8 @@ private:
     
     // EWMA Alpha: Higher = responds faster, Lower = smoother.
     // Represents alpha as a fraction of 100 to avoid floating point in the fast path.
-    // e.g., 20 = 0.20
-    static constexpr int32_t EWMA_ALPHA_PCT = 20; 
+    // e.g., 5 = 0.05
+    static constexpr int32_t EWMA_ALPHA_PCT = 5; 
 
     // Maximum allowed delta for a single sample before it's considered an outlier.
     // If a sample jumps more than this, we heavily dampen it initially.

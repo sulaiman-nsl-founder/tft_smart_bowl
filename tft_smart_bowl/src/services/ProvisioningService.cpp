@@ -19,6 +19,7 @@ static const char* CHAR_DEVINFO_UUID = "12345678-1234-1234-1234-123456789004";
 static const char* POP_PIN = "1234";
 
 NimBLECharacteristic* pStatusChar = nullptr;
+NimBLECharacteristic* pDevInfoChar = nullptr;
 
 class PINCallback : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* pChar) override {
@@ -93,17 +94,8 @@ void ProvisioningService::resetCredentials() {
 }
 
 void ProvisioningService::buildDeviceInfo() {
-    String mac = WiFi.macAddress();
-    String chipModel = ESP.getChipModel();
-    uint8_t cores = ESP.getChipCores();
-    uint32_t flashSizeMB = ESP.getFlashChipSize() / (1024 * 1024);
-
-    char buf[200];
-    snprintf(buf, sizeof(buf),
-      "{\"mac\":\"%s\",\"fw\":\"%s\",\"chip\":\"%s\",\"cores\":%d,\"flash\":\"%dMB\",\"ModelID\":\"BOWL.1.0.0\"}",
-      mac.c_str(), FW_VERSION, chipModel.c_str(), cores, (int)flashSizeMB);
-    
-    _deviceInfo = String(buf);
+    // The app expects ONLY the exact serial number
+    _deviceInfo = "PW-SBWC001-2602-00001";
 }
 
 void ProvisioningService::updateState(App::ProvisioningState newState) {
@@ -134,7 +126,7 @@ void ProvisioningService::handlePin(const String& pin) {
         updateState(App::ProvisioningState::PinOk);
         
         delay(50);
-        if (pStatusChar) pStatusChar->setValue((String("STATE:DEVICE_INFO:") + _deviceInfo).c_str());
+        if (pStatusChar) pStatusChar->setValue(std::string((String("STATE:DEVICE_INFO:") + _deviceInfo).c_str()));
         if (pStatusChar) pStatusChar->notify();
     } else {
         _pinVerified = false;
@@ -156,7 +148,7 @@ void ProvisioningService::handleSSID(const String& ssid) {
     
     char msg[80];
     snprintf(msg, sizeof(msg), "STATE:SSID_RECEIVED:%s", ssid.c_str());
-    if (pStatusChar) pStatusChar->setValue(msg);
+    if (pStatusChar) pStatusChar->setValue(std::string(msg));
     if (pStatusChar) pStatusChar->notify();
 }
 
@@ -177,6 +169,15 @@ void ProvisioningService::handlePassword(const String& password) {
 void ProvisioningService::handleBLEConnect() {
     if (pStatusChar) pStatusChar->setValue("STATE:BLE_CONNECTED");
     if (pStatusChar) pStatusChar->notify();
+    
+    // Send the serial number and other device info immediately after BLE connection
+    if (pDevInfoChar) pDevInfoChar->setValue(std::string(_deviceInfo.c_str()));
+    if (pDevInfoChar) pDevInfoChar->notify();
+    
+    // Also send it over the Status characteristic in case the app prefers parsing strings
+    if (pStatusChar) pStatusChar->setValue(std::string((String("STATE:DEVICE_INFO:") + _deviceInfo).c_str()));
+    if (pStatusChar) pStatusChar->notify();
+    
     updateState(App::ProvisioningState::PhoneConnected);
     
     // Simulate the sequence in the original sketch
@@ -214,16 +215,20 @@ void ProvisioningService::doWifiConnect() {
         tries++;
         if (tries % 4 == 0) {
             String msg = String("STATE:WIFI_CONNECTING:attempt=") + tries + "/20";
-            if (pStatusChar) pStatusChar->setValue(msg.c_str());
+            if (pStatusChar) pStatusChar->setValue(std::string(msg.c_str()));
             if (pStatusChar) pStatusChar->notify();
         }
     }
 
     if (WiFi.status() == WL_CONNECTED) {
         _connectedIP = WiFi.localIP().toString();
+        _connectedSSID = _receivedSSID;
         String msg = String("STATE:WIFI_CONNECTED:") + _connectedIP + ":ssid=" + _connectedSSID;
-        if (pStatusChar) pStatusChar->setValue(msg.c_str());
+        if (pStatusChar) pStatusChar->setValue(std::string(msg.c_str()));
         if (pStatusChar) pStatusChar->notify();
+        
+        if (pDevInfoChar) pDevInfoChar->setValue(std::string(_deviceInfo.c_str()));
+        if (pDevInfoChar) pDevInfoChar->notify();
         
         updateState(App::ProvisioningState::WifiConnected);
         
@@ -234,7 +239,7 @@ void ProvisioningService::doWifiConnect() {
         prefs.end();
     } else {
         String msg = String("STATE:WIFI_FAILED:ssid=") + _connectedSSID;
-        if (pStatusChar) pStatusChar->setValue(msg.c_str());
+        if (pStatusChar) pStatusChar->setValue(std::string(msg.c_str()));
         if (pStatusChar) pStatusChar->notify();
         updateState(App::ProvisioningState::WifiFailed);
         WiFi.disconnect(true);
@@ -290,8 +295,8 @@ void ProvisioningService::runService() {
     pStatusChar = pService->createCharacteristic(CHAR_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
     pStatusChar->setValue("STATE:BOOT");
 
-    NimBLECharacteristic* pDevInfoChar = pService->createCharacteristic(CHAR_DEVINFO_UUID, NIMBLE_PROPERTY::READ);
-    pDevInfoChar->setValue(_deviceInfo.c_str());
+    pDevInfoChar = pService->createCharacteristic(CHAR_DEVINFO_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+    pDevInfoChar->setValue(std::string(_deviceInfo.c_str()));
 
     pService->start();
 
@@ -303,8 +308,10 @@ void ProvisioningService::runService() {
 
     if (WiFi.status() == WL_CONNECTED) {
         updateState(App::ProvisioningState::AutoConnected);
-        if (pStatusChar) pStatusChar->setValue((String("STATE:AUTO_CONNECTED:") + _connectedIP).c_str());
+        if (pStatusChar) pStatusChar->setValue(std::string((String("STATE:AUTO_CONNECTED:") + _connectedIP).c_str()));
         if (pStatusChar) pStatusChar->notify();
+        if (pDevInfoChar) pDevInfoChar->setValue(std::string(_deviceInfo.c_str()));
+        if (pDevInfoChar) pDevInfoChar->notify();
     } else {
         updateState(App::ProvisioningState::QR);
         if (pStatusChar) pStatusChar->setValue("STATE:ADVERTISING");

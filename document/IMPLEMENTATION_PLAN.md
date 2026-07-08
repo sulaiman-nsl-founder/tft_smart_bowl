@@ -885,7 +885,7 @@ Task status values are `TODO`, `IN PROGRESS`, `BLOCKED`, and `DONE`.
 
 - **Depends on:** FW-034, FW-042.
 - **Create:** `protocols/BleProvisioning`.
-- **Implement:** Setup identifier, authenticated session, bounded fields, Wi-Fi transfer, status, timeout, and shutdown.
+- **Implement:** Setup identifier, authenticated session, bounded fields, Wi-Fi transfer, status, timeout, and shutdown. DEVINFO_uuid sends hardcoded serial number, model number, and product code after WiFi connect.
 - **Pass:** Invalid or oversized requests cause no credential change.
 - **Status:** TODO.
 

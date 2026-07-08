@@ -46,10 +46,7 @@ SelfTestResult BoardSelfTest::run() {
     // 6. Memory report
     reportMemory(result);
 
-    // 7. Display results on TFT if available
-    if (result.tftOk) {
-        displayResults(result);
-    }
+    // 7. (Skipped displaying results on TFT per user request)
 
     LOG_INFO("BIST", 910, "=== Self-Test %s ===", result.allPassed() ? "PASSED" : "FAILED");
     return result;
@@ -119,8 +116,22 @@ bool BoardSelfTest::testTftDisplay() {
         return false;
     }
 
-    // Show test pattern
-    tft.showTestPattern();
+    // Show Splash screen instead of test pattern
+    tft.fillScreen(Drivers::TftDisplay::COLOR_BLACK);
+    
+    // Draw "SMART BOWL" centered roughly
+    tft.setTextSize(2);
+    tft.setTextColor(Drivers::TftDisplay::COLOR_GREEN);
+    
+    // 128x128 screen, "SMART BOWL" is 10 chars * 12px = 120px wide
+    tft.setCursor(4, 50); 
+    tft.print("SMART BOWL");
+    
+    tft.setTextSize(1);
+    tft.setTextColor(Drivers::TftDisplay::COLOR_WHITE);
+    tft.setCursor(20, 80);
+    tft.print("Starting up...");
+    
     return true;
 }
 

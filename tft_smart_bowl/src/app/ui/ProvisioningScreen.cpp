@@ -69,42 +69,36 @@ static void qrDisplayCallback(esp_qrcode_handle_t qrcode) {
     uint8_t size = esp_qrcode_get_size(qrcode);
     auto& tft = Drivers::TftDisplay::getInstance();
     
-    // Dynamically scale the QR code to fill the screen height beautifully
-    uint8_t scale = 120 / size; 
+    // Title bar height
+    const uint8_t titleH = 20;
+    
+    // Scale QR to fit below the title bar, centered on the screen
+    uint8_t availH = tft.height() - titleH - 4; // leave a small bottom margin
+    uint8_t scale = availH / size;
     if (scale < 1) scale = 1;
-    uint8_t margin = (128 - (size * scale)) / 2; // Vertically center
     uint8_t qrW = size * scale;
+    uint8_t marginX = (tft.width() - qrW) / 2;
+    uint8_t marginY = titleH + (availH - qrW) / 2;
 
     // Draw a solid white box behind the QR code
-    tft.fillRect(0, 0, (margin * 2) + qrW, tft.height(), Drivers::TftDisplay::COLOR_WHITE);
+    tft.fillRect(marginX - 4, marginY - 4, qrW + 8, qrW + 8, Drivers::TftDisplay::COLOR_WHITE);
 
     // Draw black modules
     for (uint8_t y = 0; y < size; y++) {
         for (uint8_t x = 0; x < size; x++) {
             if (esp_qrcode_get_module(qrcode, x, y)) {
-                tft.fillRect(margin + (x * scale), margin + (y * scale), scale, scale, Drivers::TftDisplay::COLOR_BLACK);
+                tft.fillRect(marginX + (x * scale), marginY + (y * scale), scale, scale, Drivers::TftDisplay::COLOR_BLACK);
             }
         }
     }
-
-    // Draw instructions on the right side
-    uint8_t tx = (margin * 2) + qrW + 5;
-    tft.setTextSize(1);
-    tft.setTextColor(Drivers::TftDisplay::COLOR_WHITE);
-    tft.setCursor(tx, 20); tft.print("SCAN");
-    tft.setCursor(tx, 35); tft.print("QR TO");
-    tft.setCursor(tx, 50); tft.print("SETUP");
-    tft.setCursor(tx, 70); tft.print("PIN:");
-    
-    tft.setTextSize(2);
-    tft.setTextColor(Drivers::TftDisplay::COLOR_YELLOW);
-    tft.setCursor(tx, 85); tft.print(POP_PIN);
-    tft.setTextColor(Drivers::TftDisplay::COLOR_WHITE); // reset
 }
 
 void ProvisioningScreen::drawQRScreen() {
     auto& tft = Drivers::TftDisplay::getInstance();
     tft.fillScreen(Drivers::TftDisplay::COLOR_BLACK);
+    
+    // Draw title bar: "Scan to connect with app"
+    drawTitleBar("Scan to connect with app", Theme::ColorAccent, Theme::ColorBackground);
     
     String qrContent = String("W:") + SERVICE_UUID + ":" + POP_PIN;
     
@@ -118,26 +112,27 @@ void ProvisioningScreen::drawQRScreen() {
 
 void ProvisioningScreen::drawTitleBar(const char* title, uint16_t bgColor, uint16_t textColor) {
     auto& tft = Drivers::TftDisplay::getInstance();
-    tft.fillRect(0, 0, tft.width(), 18, bgColor);
+    // Taller title bar with a subtle accent line at the bottom
+    tft.fillRect(0, 0, tft.width(), 22, bgColor);
+    tft.fillRect(0, 22, tft.width(), 2, Theme::ColorAccent); // accent separator
     tft.setTextColor(textColor, bgColor);
     tft.setTextSize(1);
     
-    // Calculate center (using simple approximation since TftDisplay might not have getTextBounds)
     int len = strlen(title);
-    int charWidth = 6; // text size 1 is 5x7 + 1px spacing
+    int charWidth = 6;
     int w = len * charWidth;
     int x = (tft.width() - w) / 2;
     if (x < 0) x = 0;
     
-    tft.setCursor(x, 5);
+    tft.setCursor(x, 7);
     tft.print(title);
-    tft.setTextColor(Drivers::TftDisplay::COLOR_WHITE, Drivers::TftDisplay::COLOR_BLACK);
+    tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
 }
 
 void ProvisioningScreen::drawCentered(const char* text, uint8_t y, uint8_t size, uint16_t color) {
     auto& tft = Drivers::TftDisplay::getInstance();
     tft.setTextSize(size);
-    tft.setTextColor(color, Drivers::TftDisplay::COLOR_BLACK);
+    tft.setTextColor(color, Theme::ColorBackground);
     
     int len = strlen(text);
     int charWidth = 6 * size;
@@ -147,16 +142,68 @@ void ProvisioningScreen::drawCentered(const char* text, uint8_t y, uint8_t size,
     
     tft.setCursor(x, y);
     tft.print(text);
-    tft.setTextColor(Drivers::TftDisplay::COLOR_WHITE, Drivers::TftDisplay::COLOR_BLACK);
+    tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
 }
 
 void ProvisioningScreen::drawWrapped(const char* label, const String& value, uint8_t y) {
     auto& tft = Drivers::TftDisplay::getInstance();
     tft.setTextSize(1);
-    tft.setCursor(5, y);
+    tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
+    tft.setCursor(10, y);
     tft.print(label);
-    tft.setCursor(5, y + 15);
-    tft.print(value.substring(0, 25).c_str());
+    tft.setTextColor(Theme::ColorAccent, Theme::ColorBackground);
+    tft.setCursor(10, y + 14);
+    tft.print(value.substring(0, 22).c_str());
+    tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
+}
+
+// Helper: draw a simple checkmark icon centered at (cx, cy) using fillRect
+static void drawCheckIcon(Drivers::TftDisplay& tft, int cx, int cy, uint16_t color) {
+    // Checkmark: short leg going down-right, then long leg going up-right
+    // Short leg (4 pixels diagonal)
+    for (int i = 0; i < 5; i++) {
+        tft.fillRect(cx - 8 + i, cy - 2 + i, 2, 2, color);
+    }
+    // Long leg (8 pixels diagonal going up-right)
+    for (int i = 0; i < 9; i++) {
+        tft.fillRect(cx - 3 + i, cy + 2 - i, 2, 2, color);
+    }
+}
+
+// Helper: draw a simple X icon centered at (cx, cy) using fillRect
+static void drawXIcon(Drivers::TftDisplay& tft, int cx, int cy, uint16_t color) {
+    for (int i = 0; i < 15; i++) {
+        tft.fillRect(cx - 7 + i, cy - 7 + i, 2, 2, color); // top-left to bottom-right
+        tft.fillRect(cx + 7 - i, cy - 7 + i, 2, 2, color); // top-right to bottom-left
+    }
+}
+
+// Helper: draw a lock icon using fillRect/drawRect only
+static void drawLockIcon(Drivers::TftDisplay& tft, int cx, int cy, uint16_t color) {
+    // Lock body
+    tft.fillRect(cx - 8, cy - 2, 16, 12, color);
+    // Lock shackle
+    tft.drawRect(cx - 5, cy - 10, 10, 10, color);
+    tft.drawRect(cx - 4, cy - 9,  8,  8, color);
+    // Keyhole (small dark square)
+    tft.fillRect(cx - 2, cy + 1, 4, 4, Theme::ColorBackground);
+}
+
+// Helper: draw WiFi signal bars using fillRect only
+static void drawWifiIcon(Drivers::TftDisplay& tft, int cx, int cy, uint16_t color) {
+    // 3 ascending bars
+    tft.fillRect(cx - 8, cy - 2, 4, 6,  color);  // small bar
+    tft.fillRect(cx - 2, cy - 6, 4, 10, color);  // medium bar
+    tft.fillRect(cx + 4, cy - 10, 4, 14, color); // tall bar
+    // Dot on top
+    tft.fillRect(cx - 1, cy + 6, 2, 2, color);
+}
+
+// Helper: horizontal dotted separator line using fillRect
+static void drawSeparator(Drivers::TftDisplay& tft, uint8_t y, uint16_t color) {
+    for (int x = 20; x < tft.width() - 20; x += 3) {
+        tft.fillRect(x, y, 1, 1, color);
+    }
 }
 
 void ProvisioningScreen::renderScreen(ProvisioningState s) {
@@ -167,91 +214,105 @@ void ProvisioningScreen::renderScreen(ProvisioningState s) {
         return; 
     }
 
-    // Clear screen immediately for all other views
-    tft.fillScreen(Drivers::TftDisplay::COLOR_BLACK);
+    // Clear screen
+    tft.fillScreen(Theme::ColorBackground);
     
     switch (s) {
         case ProvisioningState::Boot:
-            drawCentered("ESP32", 30, 2, Drivers::TftDisplay::COLOR_CYAN);
-            drawCentered("WiFi Provisioner", 60, 1);
-            drawCentered((String("FW: ") + FW_VERSION).c_str(), 80, 1);
-            drawCentered(_deviceMAC.c_str(), 100, 1);
+            drawTitleBar("SMART BOWL", Theme::ColorAccent, Theme::ColorBackground);
+            drawCentered("Welcome", 40, 2, Theme::ColorTextPrimary);
+            drawSeparator(tft, 62, Theme::ColorTextSecondary);
+            drawCentered("Initializing...", 72, 1, Theme::ColorAccent);
+            drawCentered((String("v") + FW_VERSION).c_str(), 105, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::DeviceInfo:
-            drawTitleBar("DEVICE INFO", Drivers::TftDisplay::COLOR_WHITE, Drivers::TftDisplay::COLOR_BLACK);
-            tft.setCursor(5, 40); tft.print("MAC:");
-            tft.setCursor(5, 55); tft.print(_deviceMAC.c_str());
-            tft.setCursor(5, 80); tft.print("Firmware:");
-            tft.setCursor(5, 95); tft.print((String("v") + FW_VERSION).c_str());
+            drawTitleBar("DEVICE INFO", Theme::ColorAccent, Theme::ColorBackground);
+            drawWrapped("MAC Address:", _deviceMAC, 32);
+            drawSeparator(tft, 62, Theme::ColorTextSecondary);
+            drawWrapped("Firmware:", String("v") + FW_VERSION, 70);
             break;
 
         case ProvisioningState::Advertising:
-            drawTitleBar("BLUETOOTH", Drivers::TftDisplay::COLOR_BLUE, Drivers::TftDisplay::COLOR_WHITE);
-            drawCentered("Advertising...", 50, 1);
-            drawCentered("ESP32-WiFi-Setup", 75, 1, Drivers::TftDisplay::COLOR_YELLOW);
-            drawCentered("Scan QR to connect", 100, 1);
+            drawTitleBar("BLUETOOTH", 0x001F /*BLUE*/, Theme::ColorTextPrimary);
+            drawCentered("Searching...", 38, 1, Theme::ColorTextPrimary);
+            drawSeparator(tft, 52, Theme::ColorTextSecondary);
+            drawCentered("ESP32-WiFi-Setup", 62, 1, Theme::ColorAccent);
+            drawCentered("Scan QR to connect", 90, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::PhoneConnected:
-            drawTitleBar("BLE CONNECTED", Drivers::TftDisplay::COLOR_GREEN, Drivers::TftDisplay::COLOR_BLACK);
-            drawCentered("Phone connected!", 50, 1);
-            drawCentered("Verifying PIN...", 80, 1, Drivers::TftDisplay::COLOR_CYAN);
+            drawTitleBar("CONNECTED", Theme::ColorSuccess, Theme::ColorBackground);
+            drawCheckIcon(tft, tft.width()/2, 50, Theme::ColorSuccess);
+            drawSeparator(tft, 68, Theme::ColorTextSecondary);
+            drawCentered("Phone linked!", 78, 1, Theme::ColorTextPrimary);
+            drawCentered("Verifying PIN...", 96, 1, Theme::ColorAccent);
             break;
 
         case ProvisioningState::EnterPin:
-            drawTitleBar("SECURITY", 0xFD20 /*ORANGE*/, Drivers::TftDisplay::COLOR_BLACK);
-            drawCentered("Waiting for PIN", 50, 1);
-            drawCentered("Scan QR code", 75, 1);
-            drawCentered("to authenticate", 90, 1);
+            drawTitleBar("ENTER PIN", 0xFD20 /*ORANGE*/, Theme::ColorBackground);
+            drawLockIcon(tft, tft.width()/2, 50, 0xFD20);
+            drawSeparator(tft, 68, Theme::ColorTextSecondary);
+            drawCentered("Waiting for PIN", 78, 1, Theme::ColorTextPrimary);
+            drawCentered("from your app", 94, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::PinOk:
-            drawTitleBar("PIN ACCEPTED", Drivers::TftDisplay::COLOR_GREEN, Drivers::TftDisplay::COLOR_BLACK);
-            tft.drawRect(50, 35, 60, 45, Drivers::TftDisplay::COLOR_GREEN);
-            drawCentered("OK", 50, 2, Drivers::TftDisplay::COLOR_GREEN);
-            drawCentered("Send WiFi details", 100, 1);
+            drawTitleBar("PIN ACCEPTED", Theme::ColorSuccess, Theme::ColorBackground);
+            drawCheckIcon(tft, tft.width()/2, 50, Theme::ColorSuccess);
+            drawSeparator(tft, 68, Theme::ColorTextSecondary);
+            drawCentered("Authenticated!", 78, 1, Theme::ColorSuccess);
+            drawCentered("Send WiFi details", 96, 1, Theme::ColorTextPrimary);
             break;
 
         case ProvisioningState::PinFail:
-            drawTitleBar("ACCESS DENIED", Drivers::TftDisplay::COLOR_RED, Drivers::TftDisplay::COLOR_WHITE);
-            tft.drawRect(50, 35, 60, 45, Drivers::TftDisplay::COLOR_RED);
-            drawCentered("X", 50, 2, Drivers::TftDisplay::COLOR_RED);
-            drawCentered("Wrong PIN-rescan", 100, 1);
+            drawTitleBar("ACCESS DENIED", Theme::ColorError, Theme::ColorTextPrimary);
+            drawXIcon(tft, tft.width()/2, 50, Theme::ColorError);
+            drawSeparator(tft, 68, Theme::ColorTextSecondary);
+            drawCentered("Wrong PIN!", 78, 1, Theme::ColorError);
+            drawCentered("Please try again", 96, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::Locked:
-            drawTitleBar("LOCKED", Drivers::TftDisplay::COLOR_RED, Drivers::TftDisplay::COLOR_WHITE);
-            drawCentered("Scan QR first!", 50, 1);
-            drawCentered("PIN required", 80, 1, Drivers::TftDisplay::COLOR_RED);
+            drawTitleBar("LOCKED", Theme::ColorError, Theme::ColorTextPrimary);
+            drawLockIcon(tft, tft.width()/2, 50, Theme::ColorError);
+            drawSeparator(tft, 68, Theme::ColorTextSecondary);
+            drawCentered("Scan QR first!", 78, 1, Theme::ColorTextPrimary);
+            drawCentered("PIN is required", 96, 1, Theme::ColorError);
             break;
 
         case ProvisioningState::Sending:
-            drawTitleBar("CREDENTIALS RX", Drivers::TftDisplay::COLOR_WHITE, Drivers::TftDisplay::COLOR_BLACK);
-            drawWrapped("SSID:", _connectedSSID, 40);
-            drawCentered("Password received", 80, 1);
-            drawCentered("Connecting...", 100, 1, Drivers::TftDisplay::COLOR_YELLOW);
+            drawTitleBar("CREDENTIALS", Theme::ColorAccent, Theme::ColorBackground);
+            drawWrapped("Network:", _connectedSSID, 32);
+            drawSeparator(tft, 62, Theme::ColorTextSecondary);
+            drawCentered("Password received", 72, 1, Theme::ColorSuccess);
+            drawCentered("Connecting...", 96, 1, Theme::ColorWarning);
             break;
 
         case ProvisioningState::WifiConnecting:
-            drawTitleBar("CONNECTING...", Drivers::TftDisplay::COLOR_YELLOW, Drivers::TftDisplay::COLOR_BLACK);
-            drawWrapped("SSID:", _connectedSSID, 40);
-            drawCentered("Please wait", 90, 1);
+            drawTitleBar("CONNECTING", Theme::ColorWarning, Theme::ColorBackground);
+            drawWifiIcon(tft, tft.width()/2, 48, Theme::ColorWarning);
+            drawSeparator(tft, 66, Theme::ColorTextSecondary);
+            drawWrapped("Network:", _connectedSSID, 72);
+            drawCentered("Please wait...", 102, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::WifiConnected:
         case ProvisioningState::AutoConnected:
-            drawTitleBar(s == ProvisioningState::AutoConnected ? "AUTO CONNECTED" : "WIFI CONNECTED", Drivers::TftDisplay::COLOR_GREEN, Drivers::TftDisplay::COLOR_BLACK);
-            drawCentered(_connectedSSID.c_str(), 45, 1);
-            tft.setCursor(5, 75); tft.print("IP:");
-            drawCentered(_connectedIP.c_str(), 95, 1, Drivers::TftDisplay::COLOR_CYAN);
+            drawTitleBar(s == ProvisioningState::AutoConnected ? "AUTO CONNECTED" : "WIFI CONNECTED", Theme::ColorSuccess, Theme::ColorBackground);
+            drawWifiIcon(tft, tft.width()/2, 42, Theme::ColorSuccess);
+            drawSeparator(tft, 58, Theme::ColorTextSecondary);
+            drawCentered(_connectedSSID.c_str(), 66, 1, Theme::ColorTextPrimary);
+            drawCentered("IP Address:", 84, 1, Theme::ColorTextSecondary);
+            drawCentered(_connectedIP.c_str(), 98, 1, Theme::ColorAccent);
             break;
 
         case ProvisioningState::WifiFailed:
-            drawTitleBar("CONN. FAILED", Drivers::TftDisplay::COLOR_RED, Drivers::TftDisplay::COLOR_WHITE);
-            drawCentered("Cannot connect to:", 45, 1);
-            drawCentered(_connectedSSID.c_str(), 70, 1, Drivers::TftDisplay::COLOR_YELLOW);
-            drawCentered("Check credentials", 100, 1);
+            drawTitleBar("CONN. FAILED", Theme::ColorError, Theme::ColorTextPrimary);
+            drawXIcon(tft, tft.width()/2, 46, Theme::ColorError);
+            drawSeparator(tft, 62, Theme::ColorTextSecondary);
+            drawCentered(_connectedSSID.c_str(), 72, 1, Theme::ColorWarning);
+            drawCentered("Check credentials", 96, 1, Theme::ColorTextSecondary);
             break;
 
         default: break;

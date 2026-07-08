@@ -16,17 +16,24 @@ void DashboardScreen::onEnter() {
     auto& tft = Drivers::TftDisplay::getInstance();
     tft.clear(Theme::ColorBackground);
     
-    // Draw static UI elements
-    tft.setCursor(10, 10);
-    tft.setTextColor(Theme::ColorTextPrimary);
+    // Draw title bar with accent separator
+    tft.fillRect(0, 0, 160, 22, Theme::ColorAccent);
+    tft.fillRect(0, 22, 160, 2, Theme::ColorWarning); // subtle accent line
+    tft.setCursor(10, 5);
+    tft.setTextColor(Theme::ColorBackground, Theme::ColorAccent);
     tft.setTextSize(2);
-    tft.print("Smart Bowl");
+    tft.print("SMART BOWL");
     
-    tft.fillRect(0, 35, 160, 1, Theme::ColorTextSecondary);
+    // Dotted separator
+    tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
+    for (int x = 20; x < 140; x += 3) {
+        tft.fillRect(x, 38, 1, 1, Theme::ColorTextSecondary);
+    }
     
-    tft.setCursor(10, 50);
+    // Label
+    tft.setCursor(10, 44);
     tft.setTextSize(1);
-    tft.setTextColor(Theme::ColorTextSecondary);
+    tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
     tft.print("Current Weight:");
     
     _needsRedraw = true;
@@ -41,21 +48,31 @@ void DashboardScreen::onUpdate() {
         auto& tft = Drivers::TftDisplay::getInstance();
         auto& weightSvc = Services::WeightService::getInstance();
 
-        // Clear the area where the weight is drawn
-        tft.fillRect(0, 70, 160, 30, Theme::ColorBackground);
+        // Use fixed width or trailing spaces to avoid leaving artifacts when number shrinks
+        // and remove the fillRect(0, 58, ...) that causes full box flicker
         
-        tft.setCursor(10, 70);
+        tft.setCursor(10, 62);
         tft.setTextSize(3);
         
         if (weightSvc.isCalibrated()) {
-            tft.setTextColor(_lastStable ? Theme::ColorSuccess : Theme::ColorWarning);
+            tft.setTextColor(_lastStable ? Theme::ColorSuccess : Theme::ColorWarning, Theme::ColorBackground);
             char buf[16];
-            snprintf(buf, sizeof(buf), "%.1f g", _lastWeight);
+            snprintf(buf, sizeof(buf), "%d g   ", (int)_lastWeight);
             tft.print(buf);
         } else {
-            tft.setTextColor(Theme::ColorError);
+            tft.setTextColor(Theme::ColorError, Theme::ColorBackground);
             tft.print("UNCAL");
         }
+        
+        // Status indicator at bottom
+        tft.fillRect(0, 110, 160, 18, Theme::ColorBackground);
+        for (int x = 20; x < 140; x += 3) {
+            tft.fillRect(x, 108, 1, 1, Theme::ColorTextSecondary);
+        }
+        tft.setTextSize(1);
+        tft.setTextColor(_lastStable ? Theme::ColorSuccess : Theme::ColorTextSecondary, Theme::ColorBackground);
+        tft.setCursor(10, 114);
+        tft.print(_lastStable ? "Stable" : "Measuring...");
         
         _needsRedraw = false;
     }
@@ -63,9 +80,12 @@ void DashboardScreen::onUpdate() {
 
 bool DashboardScreen::onEvent(const Services::SystemEvent& event) {
     if (event.id == Services::EventId::WeightUpdated) {
-        if (_lastWeight != event.payload.weight.grams || _lastStable != event.payload.weight.isStable) {
-            _lastWeight = event.payload.weight.grams;
-            _lastStable = event.payload.weight.isStable;
+        int newIntWeight = (int)event.payload.weight.grams;
+        bool newStable = event.payload.weight.isStable;
+        
+        if ((int)_lastWeight != newIntWeight || _lastStable != newStable) {
+            _lastWeight = event.payload.weight.grams; // store the real value
+            _lastStable = newStable;
             _needsRedraw = true;
         }
         return true;
