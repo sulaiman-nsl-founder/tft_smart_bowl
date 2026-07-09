@@ -24,16 +24,20 @@ SettingsScreen& SettingsScreen::getInstance() {
 
 void SettingsScreen::onEnter() {
     _menuIndex = 0;
-    _needsRedraw = true;
+    _fullRedraw = true;
 }
 
 void SettingsScreen::onExit() {
 }
 
 void SettingsScreen::onUpdate() {
-    if (_needsRedraw) {
-        drawMenu();
-        _needsRedraw = false;
+    if (_fullRedraw) {
+        drawMenu(true);
+        _fullRedraw = false;
+        _menuRedraw = false;
+    } else if (_menuRedraw) {
+        drawMenu(false);
+        _menuRedraw = false;
     }
 }
 
@@ -48,10 +52,10 @@ bool SettingsScreen::onEvent(const Services::SystemEvent& event) {
     
     if (btn == 0) { // Button 1 = Up
         if (_menuIndex > 0) _menuIndex--;
-        _needsRedraw = true;
+        _menuRedraw = true;
     } else if (btn == 2) { // Button 3 = Down
         if (_menuIndex < MENU_ITEMS - 1) _menuIndex++;
-        _needsRedraw = true;
+        _menuRedraw = true;
     } else if (btn == 1) { // Button 2 = Select
         if (_menuIndex == 0) {
             // Selected "Calibration"
@@ -84,11 +88,24 @@ void SettingsScreen::drawTitleBar(const char* title, uint16_t bgColor, uint16_t 
     tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
 }
 
-void SettingsScreen::drawMenu() {
+void SettingsScreen::drawMenu(bool full) {
     auto& tft = Drivers::TftDisplay::getInstance();
-    tft.fillScreen(Theme::ColorBackground);
     
-    drawTitleBar("SETTINGS", Theme::ColorAccent, Theme::ColorBackground);
+    if (full) {
+        tft.fillScreen(Theme::ColorBackground);
+        drawTitleBar("SETTINGS", Theme::ColorAccent, Theme::ColorBackground);
+        
+        // Draw navigation hint at bottom
+        // Dotted separator
+        for (int x = 10; x < tft.width() - 10; x += 3) {
+            tft.fillRect(x, 110, 1, 1, Theme::ColorTextSecondary);
+        }
+        
+        tft.setTextSize(1);
+        tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
+        tft.setCursor(10, 116);
+        tft.print("1:Up 2:OK 3:Down");
+    }
     
     // Draw menu items
     for (uint8_t i = 0; i < MENU_ITEMS; i++) {
@@ -99,6 +116,8 @@ void SettingsScreen::drawMenu() {
             tft.fillRect(8, y - 2, tft.width() - 16, 20, Theme::ColorAccent);
             tft.setTextColor(Theme::ColorBackground, Theme::ColorAccent);
         } else {
+            // Unselected item
+            tft.fillRect(8, y - 2, tft.width() - 16, 20, Theme::ColorBackground);
             tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
         }
         
@@ -106,18 +125,6 @@ void SettingsScreen::drawMenu() {
         tft.setCursor(16, y + 4);
         tft.print(MENU_LABELS[i]);
     }
-    
-    // Draw navigation hint at bottom
-    // Dotted separator
-    for (int x = 10; x < tft.width() - 10; x += 3) {
-        tft.fillRect(x, 110, 1, 1, Theme::ColorTextSecondary);
-    }
-    
-    tft.setTextSize(1);
-    tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
-    tft.setCursor(10, 116);
-    tft.print("1:Up 2:OK 3:Down");
-    tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
 }
 
 } // namespace Ui

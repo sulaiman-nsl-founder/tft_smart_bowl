@@ -17,9 +17,11 @@ OtaScreen& OtaScreen::getInstance() {
 
 void OtaScreen::onEnter() {
     _state = State::Checking;
+    _lastState = (State)-1;
     _progressPct = 0;
     _lastUpdateTimer = millis();
     _needsRedraw = true;
+    _progressRedraw = false;
 }
 
 void OtaScreen::onExit() {
@@ -37,7 +39,7 @@ void OtaScreen::onUpdate() {
     else if (_state == State::Downloading && (now - _lastUpdateTimer > 100)) {
         _progressPct += 2;
         _lastUpdateTimer = now;
-        _needsRedraw = true;
+        _progressRedraw = true;
         
         if (_progressPct >= 100) {
             _progressPct = 0;
@@ -49,7 +51,7 @@ void OtaScreen::onUpdate() {
     else if (_state == State::Installing && (now - _lastUpdateTimer > 100)) {
         _progressPct += 5;
         _lastUpdateTimer = now;
-        _needsRedraw = true;
+        _progressRedraw = true;
         
         if (_progressPct >= 100) {
             _state = State::Done;
@@ -58,28 +60,40 @@ void OtaScreen::onUpdate() {
         }
     }
 
-    if (_needsRedraw) {
+    if (_needsRedraw || _state != _lastState) {
         auto& tft = Drivers::TftDisplay::getInstance();
-        tft.fillScreen(Theme::ColorBackground);
+        
+        bool fullRedraw = (_state != _lastState);
+        if (fullRedraw) {
+            tft.fillScreen(Theme::ColorBackground);
+            _lastState = _state;
+        }
         
         switch (_state) {
             case State::Checking:
-                drawChecking();
+                if (fullRedraw) drawChecking();
                 break;
             case State::Downloading:
-                drawProgress("DOWNLOADING...");
+                if (fullRedraw) drawProgress("DOWNLOADING...");
+                else if (_progressRedraw) drawProgress("DOWNLOADING...");
                 break;
             case State::Installing:
-                drawProgress("INSTALLING...");
+                if (fullRedraw) drawProgress("INSTALLING...");
+                else if (_progressRedraw) drawProgress("INSTALLING...");
                 break;
             case State::Done:
-                drawDone();
+                if (fullRedraw) drawDone();
                 break;
             case State::Error:
-                drawError();
+                if (fullRedraw) drawError();
                 break;
         }
         _needsRedraw = false;
+        _progressRedraw = false;
+    } else if (_progressRedraw) {
+        if (_state == State::Downloading) drawProgress("DOWNLOADING...");
+        else if (_state == State::Installing) drawProgress("INSTALLING...");
+        _progressRedraw = false;
     }
 }
 
@@ -161,7 +175,7 @@ void OtaScreen::drawProgress(const char* label) {
     
     // Percentage text
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d%%", _progressPct);
+    snprintf(buf, sizeof(buf), "%3d%%", _progressPct);
     drawCentered(buf, 80, 1, Theme::ColorTextPrimary);
     
     drawCentered("Do not power off!", 105, 1, Theme::ColorError);

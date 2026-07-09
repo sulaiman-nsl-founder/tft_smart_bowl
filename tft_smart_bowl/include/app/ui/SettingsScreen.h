@@ -28,12 +28,13 @@ private:
     SettingsScreen(const SettingsScreen&) = delete;
     SettingsScreen& operator=(const SettingsScreen&) = delete;
 
-    void drawMenu();
+    void drawMenu(bool full);
     void drawTitleBar(const char* title, uint16_t bgColor, uint16_t textColor);
 
     uint8_t _menuIndex = 0;
     static constexpr uint8_t MENU_ITEMS = 3;
-    bool _needsRedraw = true;
+    bool _fullRedraw = true;
+    bool _menuRedraw = true;
 };
 
 } // namespace Ui

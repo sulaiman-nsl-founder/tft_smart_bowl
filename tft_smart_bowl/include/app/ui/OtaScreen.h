@@ -42,7 +42,9 @@ private:
     void drawCentered(const char* text, uint8_t y, uint8_t size, uint16_t color);
 
     State _state = State::Checking;
+    State _lastState = (State)-1;
     bool _needsRedraw = true;
+    bool _progressRedraw = false;
     uint8_t _progressPct = 0;
     uint32_t _lastUpdateTimer = 0;
 };

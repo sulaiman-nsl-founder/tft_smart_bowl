@@ -18,6 +18,7 @@ CalibrationScreen& CalibrationScreen::getInstance() {
 
 void CalibrationScreen::onEnter() {
     _step = Step::TarePrompt;
+    _lastStep = (Step)-1; // Force full redraw
     _needsRedraw = true;
 }
 
@@ -149,16 +150,30 @@ void CalibrationScreen::drawCentered(const char* text, uint8_t y, uint8_t size, 
 
 void CalibrationScreen::drawStep() {
     auto& tft = Drivers::TftDisplay::getInstance();
-    tft.fillScreen(Theme::ColorBackground);
+    
+    bool fullRedraw = (_step != _lastStep);
+    if (fullRedraw) {
+        tft.fillScreen(Theme::ColorBackground);
+        _lastStep = _step;
+    }
     
     auto& ws = Services::WeightService::getInstance();
     
     switch (_step) {
         case Step::TarePrompt:
-            drawTitleBar("STEP 1: TARE", Theme::ColorWarning, Theme::ColorBackground);
-            drawCentered("Remove all items", 38, 1, Theme::ColorTextPrimary);
-            drawCentered("from the bowl", 52, 1, Theme::ColorTextPrimary);
-            
+            if (fullRedraw) {
+                drawTitleBar("STEP 1: TARE", Theme::ColorWarning, Theme::ColorBackground);
+                drawCentered("Remove all items", 38, 1, Theme::ColorTextPrimary);
+                drawCentered("from the bowl", 52, 1, Theme::ColorTextPrimary);
+                
+                // Dotted separator
+                for (int x = 20; x < tft.width() - 20; x += 3) {
+                    tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
+                }
+                
+                drawCentered("Press 2: OK", 80, 1, Theme::ColorAccent);
+                drawCentered("Press 3: Cancel", 94, 1, Theme::ColorTextSecondary);
+            }            
             // Dotted separator
             for (int x = 20; x < tft.width() - 20; x += 3) {
                 tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
@@ -169,100 +184,110 @@ void CalibrationScreen::drawStep() {
             
             // Raw value display
             {
-                char buf[24];
-                snprintf(buf, sizeof(buf), "Raw: %ld", (long)ws.getRawFiltered());
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Raw: %-8ld  ", (long)ws.getRawFiltered());
                 drawCentered(buf, 114, 1, Theme::ColorTextSecondary);
             }
             break;
             
         case Step::Taring:
-            drawTitleBar("TARING...", Theme::ColorWarning, Theme::ColorBackground);
-            drawCentered("Please wait", 45, 1, Theme::ColorTextPrimary);
-            drawCentered("Stabilizing...", 65, 1, Theme::ColorWarning);
+            if (fullRedraw) {
+                drawTitleBar("TARING...", Theme::ColorWarning, Theme::ColorBackground);
+                drawCentered("Please wait", 45, 1, Theme::ColorTextPrimary);
+                drawCentered("Stabilizing...", 65, 1, Theme::ColorWarning);
+            }
             
             // Show live raw value
             {
-                char buf[24];
-                snprintf(buf, sizeof(buf), "Raw: %ld", (long)ws.getRawFiltered());
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Raw: %-8ld  ", (long)ws.getRawFiltered());
                 drawCentered(buf, 95, 1, Theme::ColorTextSecondary);
             }
             break;
             
         case Step::SpanPrompt:
-            drawTitleBar("STEP 2: SPAN", Theme::ColorAccent, Theme::ColorBackground);
-            drawCentered("Place 100g weight", 38, 1, Theme::ColorTextPrimary);
-            drawCentered("on the bowl", 52, 1, Theme::ColorTextPrimary);
-            
-            // Dotted separator
-            for (int x = 20; x < tft.width() - 20; x += 3) {
-                tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
+            if (fullRedraw) {
+                drawTitleBar("STEP 2: SPAN", Theme::ColorAccent, Theme::ColorBackground);
+                drawCentered("Place 100g weight", 38, 1, Theme::ColorTextPrimary);
+                drawCentered("on the bowl", 52, 1, Theme::ColorTextPrimary);
+                
+                // Dotted separator
+                for (int x = 20; x < tft.width() - 20; x += 3) {
+                    tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
+                }
+                
+                drawCentered("Press 2: OK", 80, 1, Theme::ColorAccent);
+                drawCentered("Press 3: Cancel", 94, 1, Theme::ColorTextSecondary);
             }
-            
-            drawCentered("Press 2: OK", 80, 1, Theme::ColorAccent);
-            drawCentered("Press 3: Cancel", 94, 1, Theme::ColorTextSecondary);
             
             // Raw value display
             {
-                char buf[24];
-                snprintf(buf, sizeof(buf), "Raw: %ld", (long)ws.getRawFiltered());
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Raw: %-8ld  ", (long)ws.getRawFiltered());
                 drawCentered(buf, 114, 1, Theme::ColorTextSecondary);
             }
             break;
             
         case Step::Spanning:
-            drawTitleBar("CALIBRATING...", Theme::ColorAccent, Theme::ColorBackground);
-            drawCentered("Please wait", 45, 1, Theme::ColorTextPrimary);
-            drawCentered("Stabilizing...", 65, 1, Theme::ColorAccent);
+            if (fullRedraw) {
+                drawTitleBar("CALIBRATING...", Theme::ColorAccent, Theme::ColorBackground);
+                drawCentered("Please wait", 45, 1, Theme::ColorTextPrimary);
+                drawCentered("Stabilizing...", 65, 1, Theme::ColorAccent);
+            }
             
             // Show live weight
             {
                 char buf[24];
-                snprintf(buf, sizeof(buf), "%d g   ", (int)ws.getWeight());
+                snprintf(buf, sizeof(buf), "%5d g   ", (int)ws.getWeight());
                 drawCentered(buf, 90, 2, Theme::ColorWarning);
             }
             break;
             
         case Step::Done:
-            drawTitleBar("COMPLETE!", Theme::ColorSuccess, Theme::ColorBackground);
-            
-            // Checkmark icon
-            {
-                int cx = tft.width() / 2;
-                int cy = 46;
-                for (int i = 0; i < 5; i++) {
-                    tft.fillRect(cx - 8 + i, cy - 2 + i, 2, 2, Theme::ColorSuccess);
+            if (fullRedraw) {
+                drawTitleBar("COMPLETE!", Theme::ColorSuccess, Theme::ColorBackground);
+                
+                // Checkmark icon
+                {
+                    int cx = tft.width() / 2;
+                    int cy = 46;
+                    for (int i = 0; i < 5; i++) {
+                        tft.fillRect(cx - 8 + i, cy - 2 + i, 2, 2, Theme::ColorSuccess);
+                    }
+                    for (int i = 0; i < 9; i++) {
+                        tft.fillRect(cx - 3 + i, cy + 2 - i, 2, 2, Theme::ColorSuccess);
+                    }
                 }
-                for (int i = 0; i < 9; i++) {
-                    tft.fillRect(cx - 3 + i, cy + 2 - i, 2, 2, Theme::ColorSuccess);
-                }
+                
+                drawCentered("Calibration", 64, 1, Theme::ColorSuccess);
+                drawCentered("Saved!", 78, 1, Theme::ColorSuccess);
             }
-            
-            drawCentered("Calibration", 64, 1, Theme::ColorSuccess);
-            drawCentered("Saved!", 78, 1, Theme::ColorSuccess);
             
             // Show final weight reading
             {
                 char buf[24];
-                snprintf(buf, sizeof(buf), "%d g   ", (int)ws.getWeight());
+                snprintf(buf, sizeof(buf), "%5d g   ", (int)ws.getWeight());
                 drawCentered(buf, 100, 2, Theme::ColorTextPrimary);
             }
             break;
             
         case Step::Error:
-            drawTitleBar("ERROR", Theme::ColorError, Theme::ColorTextPrimary);
-            
-            // X icon
-            {
-                int cx = tft.width() / 2;
-                int cy = 48;
-                for (int i = 0; i < 15; i++) {
-                    tft.fillRect(cx - 7 + i, cy - 7 + i, 2, 2, Theme::ColorError);
-                    tft.fillRect(cx + 7 - i, cy - 7 + i, 2, 2, Theme::ColorError);
+            if (fullRedraw) {
+                drawTitleBar("ERROR", Theme::ColorError, Theme::ColorTextPrimary);
+                
+                // X icon
+                {
+                    int cx = tft.width() / 2;
+                    int cy = 48;
+                    for (int i = 0; i < 15; i++) {
+                        tft.fillRect(cx - 7 + i, cy - 7 + i, 2, 2, Theme::ColorError);
+                        tft.fillRect(cx + 7 - i, cy - 7 + i, 2, 2, Theme::ColorError);
+                    }
                 }
+                
+                drawCentered("Scale not stable", 72, 1, Theme::ColorError);
+                drawCentered("Press OK to retry", 96, 1, Theme::ColorTextSecondary);
             }
-            
-            drawCentered("Scale not stable", 72, 1, Theme::ColorError);
-            drawCentered("Press OK to retry", 96, 1, Theme::ColorTextSecondary);
             break;
             
         default:

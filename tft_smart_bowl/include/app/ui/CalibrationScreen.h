@@ -41,6 +41,7 @@ private:
     void drawCentered(const char* text, uint8_t y, uint8_t size, uint16_t color);
 
     Step _step = Step::TarePrompt;
+    Step _lastStep = Step::Error;
     bool _needsRedraw = true;
     uint32_t _doneTimer = 0;      // Auto-return timer after calibration done
 };
