@@ -91,15 +91,9 @@ bool DashboardScreen::onEvent(const Services::SystemEvent& event) {
         return true;
     }
     
-    // Pass Tare and Span button presses straight to WeightService for now,
-    // though eventually a proper Settings/Calibration screen will handle them.
     if (event.id == Services::EventId::ButtonPress) {
-        if (event.payload.button.buttonId == 0 && event.payload.button.eventType == 1) { // 1 = pressed
+        if (event.payload.button.buttonId == 1 && event.payload.button.eventType == 1) { // 1 = middle button, pressed
             Services::WeightService::getInstance().requestTare();
-            return true;
-        }
-        if (event.payload.button.buttonId == 1 && event.payload.button.eventType == 1) {
-            Services::WeightService::getInstance().requestSpan(100.0f);
             return true;
         }
     }
