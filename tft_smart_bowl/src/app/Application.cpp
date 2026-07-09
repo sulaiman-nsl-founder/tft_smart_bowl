@@ -170,14 +170,12 @@ void Application::loop() {
             Services::EventBus::getInstance().publish(sysEvt);
             
             // Still toggle LEDs for physical feedback
+            auto& leds = Drivers::Leds::getInstance();
+            auto ledId = static_cast<Drivers::LedId>(i);
             if (evt == Drivers::ButtonEvent::Press) {
-                auto& leds = Drivers::Leds::getInstance();
-                auto ledId = static_cast<Drivers::LedId>(i);
-                if (leds.isOn(ledId)) {
-                    leds.off(ledId);
-                } else {
-                    leds.on(ledId);
-                }
+                leds.on(ledId);
+            } else if (evt == Drivers::ButtonEvent::Release) {
+                leds.off(ledId);
             }
             
             // Handle Provisioning reset on button 1 long press
