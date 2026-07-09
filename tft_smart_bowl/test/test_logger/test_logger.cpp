@@ -17,7 +17,7 @@ void test_logger_secret_redaction() {
     strcpy(buffer, "This contains supersecret123 and mypassword!");
     logger.redact(buffer);
 
-    TEST_ASSERT_EQUAL_STRING("This contains *************** and **********!", buffer);
+    TEST_ASSERT_EQUAL_STRING("This contains ************** and **********!", buffer);
 }
 
 void test_logger_multiple_secrets() {
