@@ -14,6 +14,7 @@
 #include "app/ui/DashboardScreen.h"
 #include "app/ui/ProvisioningScreen.h"
 #include "app/ui/CalibrationScreen.h"
+#include "app/ui/SettingsScreen.h"
 #include "app/BowlStateMachine.h"
 #include "app/FeedingSession.h"
 #include "app/FoodMenu.h"
@@ -199,8 +200,8 @@ void Application::loop() {
             settingsComboFired = false;
         } else if (!settingsComboFired && (millis() - settingsPressTime >= 2000)) {
             settingsComboFired = true;
-            LOG_INFO("APP", 201, "Entering Settings Menu (Calibration)");
-            App::Ui::UiManager::getInstance().setScreen(&App::Ui::CalibrationScreen::getInstance());
+            LOG_INFO("APP", 201, "Entering Settings Menu");
+            App::Ui::UiManager::getInstance().setScreen(&App::Ui::SettingsScreen::getInstance());
         }
     } else {
         settingsComboWasPressed = false;

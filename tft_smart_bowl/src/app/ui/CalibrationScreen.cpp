@@ -1,4 +1,5 @@
 #include "app/ui/CalibrationScreen.h"
+#include "app/ui/SettingsScreen.h"
 #include "app/ui/DashboardScreen.h"
 #include "app/ui/UiManager.h"
 #include "app/ui/Theme.h"
@@ -10,20 +11,13 @@
 namespace App {
 namespace Ui {
 
-// Menu item labels
-static const char* MENU_LABELS[] = {
-    "Calibration",
-    "Back"
-};
-
 CalibrationScreen& CalibrationScreen::getInstance() {
     static CalibrationScreen instance;
     return instance;
 }
 
 void CalibrationScreen::onEnter() {
-    _step = Step::Menu;
-    _menuIndex = 0;
+    _step = Step::TarePrompt;
     _needsRedraw = true;
 }
 
@@ -34,7 +28,7 @@ void CalibrationScreen::onExit() {
 void CalibrationScreen::onUpdate() {
     // Auto-return to dashboard after calibration done
     if (_step == Step::Done && millis() > _doneTimer) {
-        UiManager::getInstance().setScreen(&DashboardScreen::getInstance());
+        UiManager::getInstance().setScreen(&SettingsScreen::getInstance());
         return;
     }
     
@@ -61,11 +55,7 @@ void CalibrationScreen::onUpdate() {
     }
     
     if (_needsRedraw) {
-        if (_step == Step::Menu) {
-            drawMenu();
-        } else {
-            drawStep();
-        }
+        drawStep();
         _needsRedraw = false;
     }
 }
@@ -80,30 +70,13 @@ bool CalibrationScreen::onEvent(const Services::SystemEvent& event) {
     if (type != 1) return false;
     
     switch (_step) {
-        case Step::Menu:
-            if (btn == 0) { // Button 1 = Up
-                if (_menuIndex > 0) _menuIndex--;
-                _needsRedraw = true;
-            } else if (btn == 2) { // Button 3 = Down
-                if (_menuIndex < MENU_ITEMS - 1) _menuIndex++;
-                _needsRedraw = true;
-            } else if (btn == 1) { // Button 2 = Select
-                if (_menuIndex == 0) {
-                    // Selected "Calibration"
-                    _step = Step::TarePrompt;
-                    _needsRedraw = true;
-                } else {
-                    // Selected "Back"
-                    UiManager::getInstance().setScreen(&DashboardScreen::getInstance());
-                }
-            }
-            return true;
-            
         case Step::TarePrompt:
             if (btn == 1) { // Button 2 = OK
                 Services::WeightService::getInstance().requestTare();
                 _step = Step::Taring;
                 _needsRedraw = true;
+            } else if (btn == 2) { // Button 3 = Cancel
+                UiManager::getInstance().setScreen(&SettingsScreen::getInstance());
             }
             return true;
             
@@ -112,6 +85,8 @@ bool CalibrationScreen::onEvent(const Services::SystemEvent& event) {
                 Services::WeightService::getInstance().requestSpan(100.0f);
                 _step = Step::Spanning;
                 _needsRedraw = true;
+            } else if (btn == 2) { // Button 3 = Cancel
+                UiManager::getInstance().setScreen(&SettingsScreen::getInstance());
             }
             return true;
             
@@ -119,12 +94,14 @@ bool CalibrationScreen::onEvent(const Services::SystemEvent& event) {
             if (btn == 1) { // Button 2 = Retry
                 _step = Step::TarePrompt;
                 _needsRedraw = true;
+            } else if (btn == 2) { // Button 3 = Cancel
+                UiManager::getInstance().setScreen(&SettingsScreen::getInstance());
             }
             return true;
             
         case Step::Done:
-            // Any button returns to dashboard
-            UiManager::getInstance().setScreen(&DashboardScreen::getInstance());
+            // Any button returns to settings
+            UiManager::getInstance().setScreen(&SettingsScreen::getInstance());
             return true;
             
         default:
@@ -168,41 +145,7 @@ void CalibrationScreen::drawCentered(const char* text, uint8_t y, uint8_t size, 
     tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
 }
 
-void CalibrationScreen::drawMenu() {
-    auto& tft = Drivers::TftDisplay::getInstance();
-    tft.fillScreen(Theme::ColorBackground);
-    
-    drawTitleBar("SETTINGS", Theme::ColorAccent, Theme::ColorBackground);
-    
-    // Draw menu items
-    for (uint8_t i = 0; i < MENU_ITEMS; i++) {
-        uint8_t y = 38 + (i * 28);
-        
-        if (i == _menuIndex) {
-            // Selected item: highlighted bar
-            tft.fillRect(8, y - 2, tft.width() - 16, 20, Theme::ColorAccent);
-            tft.setTextColor(Theme::ColorBackground, Theme::ColorAccent);
-        } else {
-            tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
-        }
-        
-        tft.setTextSize(1);
-        tft.setCursor(16, y + 4);
-        tft.print(MENU_LABELS[i]);
-    }
-    
-    // Draw navigation hint at bottom
-    // Dotted separator
-    for (int x = 10; x < tft.width() - 10; x += 3) {
-        tft.fillRect(x, 100, 1, 1, Theme::ColorTextSecondary);
-    }
-    
-    tft.setTextSize(1);
-    tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
-    tft.setCursor(10, 110);
-    tft.print("1:Up 2:OK 3:Down");
-    tft.setTextColor(Theme::ColorTextPrimary, Theme::ColorBackground);
-}
+
 
 void CalibrationScreen::drawStep() {
     auto& tft = Drivers::TftDisplay::getInstance();
@@ -221,8 +164,8 @@ void CalibrationScreen::drawStep() {
                 tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
             }
             
-            drawCentered("Press OK when", 80, 1, Theme::ColorAccent);
-            drawCentered("bowl is empty", 94, 1, Theme::ColorAccent);
+            drawCentered("Press 2: OK", 80, 1, Theme::ColorAccent);
+            drawCentered("Press 3: Cancel", 94, 1, Theme::ColorTextSecondary);
             
             // Raw value display
             {
@@ -255,8 +198,8 @@ void CalibrationScreen::drawStep() {
                 tft.fillRect(x, 70, 1, 1, Theme::ColorTextSecondary);
             }
             
-            drawCentered("Press OK when", 80, 1, Theme::ColorAccent);
-            drawCentered("weight is placed", 94, 1, Theme::ColorAccent);
+            drawCentered("Press 2: OK", 80, 1, Theme::ColorAccent);
+            drawCentered("Press 3: Cancel", 94, 1, Theme::ColorTextSecondary);
             
             // Raw value display
             {
