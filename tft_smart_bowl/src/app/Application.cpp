@@ -180,11 +180,30 @@ void Application::loop() {
             }
             
             // Handle Provisioning reset on button 1 long press
-            if (i == 1 && evt == Drivers::ButtonEvent::LongPress) {
-                Services::ProvisioningService::getInstance().resetCredentials();
-                App::Ui::UiManager::getInstance().setScreen(&App::Ui::ProvisioningScreen::getInstance());
-            }
+            // Removed: User requested middle button (Button 2 / index 1) not to do factory reset.
         }
+    }
+
+    // Detect simultaneous long press of Button 1 and Button 3
+    static uint32_t settingsPressTime = 0;
+    static bool settingsComboWasPressed = false;
+    static bool settingsComboFired = false;
+    
+    bool btn1 = Drivers::Buttons::getInstance().isPressed(Drivers::ButtonId::Button1);
+    bool btn3 = Drivers::Buttons::getInstance().isPressed(Drivers::ButtonId::Button3);
+    
+    if (btn1 && btn3) {
+        if (!settingsComboWasPressed) {
+            settingsPressTime = millis();
+            settingsComboWasPressed = true;
+            settingsComboFired = false;
+        } else if (!settingsComboFired && (millis() - settingsPressTime >= 2000)) {
+            settingsComboFired = true;
+            LOG_INFO("APP", 201, "Entering Settings Menu (Calibration)");
+            App::Ui::UiManager::getInstance().setScreen(&App::Ui::CalibrationScreen::getInstance());
+        }
+    } else {
+        settingsComboWasPressed = false;
     }
 
     // Check BOOT button (GPIO 0) for Factory Reset / WiFi Reset
