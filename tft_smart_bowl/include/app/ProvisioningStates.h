@@ -18,6 +18,7 @@ enum class ProvisioningState : uint8_t {
     Locked,
     Sending,
     WifiConnecting,
+    WifiRetrying,
     WifiConnected,
     WifiFailed,
     AutoConnected

@@ -203,6 +203,7 @@ Pass when the hardware smoke-test checklist succeeds on at least two representat
 - Test zero and approved reference masses across the operating range.
 - Power-cycle during calibration commit.
 - Disconnect or hold the ADC bus and confirm bounded recovery.
+
 - Confirm invalid calibration cannot produce a trusted consumption result.
 
 ### Gate G3

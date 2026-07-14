@@ -21,6 +21,9 @@ public:
     // Reset credentials and enter provisioning mode
     void resetCredentials();
 
+    // Manually request QR mode for new Wi-Fi
+    void requestQRMode();
+
     // The BLE callbacks will call these
     void handlePin(const String& pin);
     void handleSSID(const String& ssid);
@@ -52,6 +55,9 @@ private:
 
     bool _pendingConnect = false;
     bool _pendingDisconnect = false;
+    
+    bool _userRequestedQR = false;
+    uint32_t _lastRetryTime = 0;
 };
 
 } // namespace Services

@@ -6,6 +6,7 @@
 #include "platform/BuildInfo.h"
 #include <WiFi.h>
 #include "qrcode.h"
+#include "services/ProvisioningService.h"
 
 namespace App {
 namespace Ui {
@@ -36,6 +37,16 @@ void ProvisioningScreen::onUpdate() {
 }
 
 bool ProvisioningScreen::onEvent(const Services::SystemEvent& event) {
+    if (event.id == Services::EventId::ButtonPress) {
+        if (_currentState == ProvisioningState::WifiRetrying) {
+            // Button 1 is buttonId 0. Release is eventType 2.
+            if (event.payload.button.buttonId == 0 && event.payload.button.eventType == 2) {
+                Services::ProvisioningService::getInstance().requestQRMode();
+                return true;
+            }
+        }
+    }
+
     if (event.id == Services::EventId::ProvisioningStateChanged) {
         ProvisioningState newState = static_cast<ProvisioningState>(event.payload.provisioning.state);
         
@@ -287,6 +298,14 @@ void ProvisioningScreen::renderScreen(ProvisioningState s) {
             drawSeparator(tft, 62, Theme::ColorTextSecondary);
             drawCentered("Password received", 72, 1, Theme::ColorSuccess);
             drawCentered("Connecting...", 96, 1, Theme::ColorWarning);
+            break;
+
+        case ProvisioningState::WifiRetrying:
+            drawTitleBar("RECONNECTING", Theme::ColorWarning, Theme::ColorBackground);
+            drawWifiIcon(tft, tft.width()/2, 48, Theme::ColorWarning);
+            drawSeparator(tft, 66, Theme::ColorTextSecondary);
+            drawCentered("Retrying Wi-Fi...", 72, 1, Theme::ColorWarning);
+            drawCentered("Press BTN 1 for New Wi-Fi", 102, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::WifiConnecting:

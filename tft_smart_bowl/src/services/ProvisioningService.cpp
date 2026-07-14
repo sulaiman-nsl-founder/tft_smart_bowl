@@ -85,6 +85,11 @@ void ProvisioningService::resetCredentials() {
     _receivedSSID = "";
     _receivedPass = "";
     
+    requestQRMode();
+}
+
+void ProvisioningService::requestQRMode() {
+    _userRequestedQR = true;
     updateState(App::ProvisioningState::QR);
     if (pStatusChar) {
         pStatusChar->setValue("STATE:ADVERTISING");
@@ -313,9 +318,14 @@ void ProvisioningService::runService() {
         if (pDevInfoChar) pDevInfoChar->setValue(std::string(_deviceInfo.c_str()));
         if (pDevInfoChar) pDevInfoChar->notify();
     } else {
-        updateState(App::ProvisioningState::QR);
-        if (pStatusChar) pStatusChar->setValue("STATE:ADVERTISING");
-        if (pStatusChar) pStatusChar->notify();
+        if (!savedSSID.isEmpty() && !_userRequestedQR) {
+            updateState(App::ProvisioningState::WifiRetrying);
+            _lastRetryTime = millis();
+        } else {
+            updateState(App::ProvisioningState::QR);
+            if (pStatusChar) pStatusChar->setValue("STATE:ADVERTISING");
+            if (pStatusChar) pStatusChar->notify();
+        }
     }
 
     while (true) {
@@ -325,15 +335,41 @@ void ProvisioningService::runService() {
             if (pStatusChar) pStatusChar->notify();
             NimBLEDevice::startAdvertising();
             if (WiFi.status() != WL_CONNECTED) {
-                updateState(App::ProvisioningState::QR);
-                if (pStatusChar) pStatusChar->setValue("STATE:ADVERTISING");
-                if (pStatusChar) pStatusChar->notify();
+                if (!savedSSID.isEmpty() && !_userRequestedQR) {
+                    updateState(App::ProvisioningState::WifiRetrying);
+                } else {
+                    updateState(App::ProvisioningState::QR);
+                    if (pStatusChar) pStatusChar->setValue("STATE:ADVERTISING");
+                    if (pStatusChar) pStatusChar->notify();
+                }
             }
         }
 
         if (_pendingConnect) {
             _pendingConnect = false;
             doWifiConnect();
+        }
+
+        if (!_userRequestedQR && !savedSSID.isEmpty()) {
+            if (WiFi.status() != WL_CONNECTED) {
+                uint32_t now = millis();
+                if (now - _lastRetryTime >= 10000) { // Retry every 10 seconds
+                    _lastRetryTime = now;
+                    if (_currentState != App::ProvisioningState::WifiRetrying) {
+                        updateState(App::ProvisioningState::WifiRetrying);
+                    }
+                    WiFi.disconnect(true);
+                    WiFi.begin(savedSSID.c_str(), savedPass.c_str());
+                }
+            } else if (_currentState == App::ProvisioningState::WifiRetrying) {
+                _connectedIP = WiFi.localIP().toString();
+                _connectedSSID = savedSSID;
+                updateState(App::ProvisioningState::AutoConnected);
+                
+                String msg = String("STATE:AUTO_CONNECTED:") + _connectedIP;
+                if (pStatusChar) pStatusChar->setValue(std::string(msg.c_str()));
+                if (pStatusChar) pStatusChar->notify();
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(50));
