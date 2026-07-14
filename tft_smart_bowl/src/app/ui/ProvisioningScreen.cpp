@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include "qrcode.h"
 #include "services/ProvisioningService.h"
+#include <Preferences.h>
 
 namespace App {
 namespace Ui {
@@ -21,7 +22,10 @@ ProvisioningScreen& ProvisioningScreen::getInstance() {
 
 void ProvisioningScreen::onEnter() {
     _deviceMAC = WiFi.macAddress();
-    _currentState = ProvisioningState::Boot;
+    _currentState = Services::ProvisioningService::getInstance().getCurrentState();
+    if (_currentState == ProvisioningState::Boot) {
+        _currentState = ProvisioningState::QR; // Fallback just in case
+    }
     _needsRedraw = true;
 }
 
@@ -38,11 +42,20 @@ void ProvisioningScreen::onUpdate() {
 
 bool ProvisioningScreen::onEvent(const Services::SystemEvent& event) {
     if (event.id == Services::EventId::ButtonPress) {
-        if (_currentState == ProvisioningState::WifiRetrying) {
-            // Button 1 is buttonId 0. Release is eventType 2.
-            if (event.payload.button.buttonId == 0 && event.payload.button.eventType == 2) {
-                Services::ProvisioningService::getInstance().requestQRMode();
-                return true;
+        if (event.payload.button.eventType == 2) { // Release
+            if (_currentState == ProvisioningState::WifiRetrying) {
+                if (event.payload.button.buttonId == 0) { // Button 1
+                    UiManager::getInstance().setScreen(&DashboardScreen::getInstance());
+                    return true;
+                } else if (event.payload.button.buttonId == 1) { // Button 2
+                    Services::ProvisioningService::getInstance().requestQRMode();
+                    return true;
+                }
+            } else if (_currentState == ProvisioningState::QR) {
+                if (event.payload.button.buttonId == 0) { // Button 1
+                    Services::ProvisioningService::getInstance().cancelQRMode();
+                    return true;
+                }
             }
         }
     }
@@ -83,13 +96,13 @@ static void qrDisplayCallback(esp_qrcode_handle_t qrcode) {
     // Title bar height
     const uint8_t titleH = 20;
     
-    // Scale QR to fit below the title bar, centered on the screen
-    uint8_t availH = tft.height() - titleH - 4; // leave a small bottom margin
+    // Scale QR to fit below the title bar, leaving room for bottom text
+    uint8_t availH = tft.height() - titleH - 14; 
     uint8_t scale = availH / size;
     if (scale < 1) scale = 1;
     uint8_t qrW = size * scale;
     uint8_t marginX = (tft.width() - qrW) / 2;
-    uint8_t marginY = titleH + (availH - qrW) / 2;
+    uint8_t marginY = titleH + 2 + (availH - qrW) / 2;
 
     // Draw a solid white box behind the QR code
     tft.fillRect(marginX - 4, marginY - 4, qrW + 8, qrW + 8, Drivers::TftDisplay::COLOR_WHITE);
@@ -119,6 +132,19 @@ void ProvisioningScreen::drawQRScreen() {
         .qrcode_ecc_level   = ESP_QRCODE_ECC_LOW,
     };
     esp_qrcode_generate(&cfg, qrContent.c_str());
+    
+    // Check if there is a saved SSID, if so, we can go back
+    Preferences prefs;
+    prefs.begin("wifi", true);
+    String savedSSID = prefs.getString("ssid", "");
+    prefs.end();
+    
+    if (!savedSSID.isEmpty()) {
+        tft.setTextSize(1);
+        tft.setTextColor(Theme::ColorTextSecondary, Theme::ColorBackground);
+        tft.setCursor(5, tft.height() - 10);
+        tft.print("BTN 1: Back");
+    }
 }
 
 void ProvisioningScreen::drawTitleBar(const char* title, uint16_t bgColor, uint16_t textColor) {
@@ -305,7 +331,8 @@ void ProvisioningScreen::renderScreen(ProvisioningState s) {
             drawWifiIcon(tft, tft.width()/2, 48, Theme::ColorWarning);
             drawSeparator(tft, 66, Theme::ColorTextSecondary);
             drawCentered("Retrying Wi-Fi...", 72, 1, Theme::ColorWarning);
-            drawCentered("Press BTN 1 for New Wi-Fi", 102, 1, Theme::ColorTextSecondary);
+            drawCentered("BTN 1: Offline", 95, 1, Theme::ColorTextSecondary);
+            drawCentered("BTN 2: New Wi-Fi", 108, 1, Theme::ColorTextSecondary);
             break;
 
         case ProvisioningState::WifiConnecting:

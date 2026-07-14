@@ -20,6 +20,7 @@ private:
 
     float _lastWeight = 0.0f;
     bool _lastStable = false;
+    bool _wasProvisioned = false;
     bool _needsRedraw = true;
 };
 

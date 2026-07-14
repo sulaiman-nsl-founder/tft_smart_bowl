@@ -98,6 +98,23 @@ void ProvisioningService::requestQRMode() {
     NimBLEDevice::startAdvertising();
 }
 
+void ProvisioningService::cancelQRMode() {
+    _userRequestedQR = false;
+    
+    Preferences prefs;
+    prefs.begin("wifi", true);
+    String savedSSID = prefs.getString("ssid", "");
+    prefs.end();
+    
+    if (!savedSSID.isEmpty()) {
+        updateState(App::ProvisioningState::WifiRetrying);
+    }
+}
+
+App::ProvisioningState ProvisioningService::getCurrentState() const {
+    return _currentState;
+}
+
 void ProvisioningService::buildDeviceInfo() {
     // The app expects ONLY the exact serial number
     _deviceInfo = "PW-SBWC001-2602-00001";

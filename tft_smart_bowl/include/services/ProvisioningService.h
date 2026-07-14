@@ -24,6 +24,12 @@ public:
     // Manually request QR mode for new Wi-Fi
     void requestQRMode();
 
+    // Cancel QR mode and return to retrying if possible
+    void cancelQRMode();
+
+    // Get current state
+    App::ProvisioningState getCurrentState() const;
+
     // The BLE callbacks will call these
     void handlePin(const String& pin);
     void handleSSID(const String& ssid);

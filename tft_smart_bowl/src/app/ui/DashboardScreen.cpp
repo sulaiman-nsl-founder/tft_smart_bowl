@@ -2,6 +2,9 @@
 #include "app/ui/Theme.h"
 #include "drivers/TftDisplay.h"
 #include "services/WeightService.h"
+#include "services/ProvisioningService.h"
+#include "app/ui/ProvisioningScreen.h"
+#include "app/ui/UiManager.h"
 #include <stdio.h>
 
 namespace App {
@@ -13,6 +16,7 @@ DashboardScreen& DashboardScreen::getInstance() {
 }
 
 void DashboardScreen::onEnter() {
+    _wasProvisioned = Services::ProvisioningService::getInstance().isProvisioned();
     auto& tft = Drivers::TftDisplay::getInstance();
     tft.clear(Theme::ColorBackground);
     
@@ -64,6 +68,22 @@ void DashboardScreen::onUpdate() {
             tft.print("UNCAL");
         }
         
+        // Draw WiFi Icon on top right
+        // Clear the icon area first
+        tft.fillRect(135, 5, 20, 16, Theme::ColorAccent);
+        if (_wasProvisioned) {
+            tft.fillRect(140, 14, 2, 4, Theme::ColorSuccess);
+            tft.fillRect(144, 10, 2, 8, Theme::ColorSuccess);
+            tft.fillRect(148, 6, 2, 12, Theme::ColorSuccess);
+        } else {
+            // Draw empty bars
+            tft.fillRect(140, 14, 2, 4, Theme::ColorTextSecondary);
+            tft.fillRect(144, 10, 2, 8, Theme::ColorTextSecondary);
+            tft.fillRect(148, 6, 2, 12, Theme::ColorTextSecondary);
+            // Draw a red line across it to indicate disconnected
+            tft.fillRect(138, 12, 14, 2, Theme::ColorError);
+        }
+        
         // Status indicator at bottom
         tft.fillRect(0, 110, 160, 18, Theme::ColorBackground);
         for (int x = 20; x < 140; x += 3) {
@@ -90,10 +110,22 @@ bool DashboardScreen::onEvent(const Services::SystemEvent& event) {
         }
         return true;
     }
+    if (event.id == Services::EventId::ProvisioningStateChanged) {
+        bool newProv = Services::ProvisioningService::getInstance().isProvisioned();
+        if (_wasProvisioned != newProv) {
+            _wasProvisioned = newProv;
+            _needsRedraw = true;
+        }
+        return true;
+    }
     
     if (event.id == Services::EventId::ButtonPress) {
         if (event.payload.button.buttonId == 1 && event.payload.button.eventType == 1) { // 1 = middle button, pressed
-            Services::WeightService::getInstance().requestTare();
+            if (!_wasProvisioned) {
+                UiManager::getInstance().setScreen(&ProvisioningScreen::getInstance());
+            } else {
+                Services::WeightService::getInstance().requestTare();
+            }
             return true;
         }
     }
