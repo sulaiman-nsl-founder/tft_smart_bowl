@@ -22,6 +22,7 @@
 #include "drivers/SdCard.h"
 #include "services/OfflineQueue.h"
 #include "services/ProvisioningService.h"
+#include "services/TimeService.h"
 #include "services/SecureStore.h"
 #include "services/CloudProvisioning.h"
 #include "services/CloudSync.h"
@@ -128,6 +129,7 @@ void Application::setup() {
     App::BowlStateMachine::getInstance().begin();
     App::FeedingSession::getInstance().begin();
     Services::ProvisioningService::getInstance().begin();
+    Services::TimeService::getInstance().begin();
     
     // Cloud and MQTT services (Temporarily disabled per user request until base firmware is perfect)
     // Services::SecureStore::getInstance().begin();

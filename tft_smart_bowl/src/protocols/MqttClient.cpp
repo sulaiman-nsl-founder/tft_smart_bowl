@@ -22,8 +22,7 @@ void MqttClient::begin() {
 }
 
 void MqttClient::syncTimeForTls() {
-    LOG_INFO("MQTT", 300, "Configuring SNTP for TLS time sync...");
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    LOG_INFO("MQTT", 300, "Waiting for TimeService SNTP sync for TLS...");
 }
 
 void MqttClient::update() {

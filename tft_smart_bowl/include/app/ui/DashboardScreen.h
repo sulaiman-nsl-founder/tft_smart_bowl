@@ -22,6 +22,8 @@ private:
     bool _lastStable = false;
     bool _wasProvisioned = false;
     bool _needsRedraw = true;
+    bool _wifiNeedsRedraw = true;
+    uint8_t _lastMinute = 60; // 60 forces initial draw
 };
 
 } // namespace Ui
