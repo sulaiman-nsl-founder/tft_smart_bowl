@@ -23,9 +23,6 @@ ProvisioningScreen& ProvisioningScreen::getInstance() {
 void ProvisioningScreen::onEnter() {
     _deviceMAC = WiFi.macAddress();
     _currentState = Services::ProvisioningService::getInstance().getCurrentState();
-    if (_currentState == ProvisioningState::Boot) {
-        _currentState = ProvisioningState::QR; // Fallback just in case
-    }
     _needsRedraw = true;
 }
 

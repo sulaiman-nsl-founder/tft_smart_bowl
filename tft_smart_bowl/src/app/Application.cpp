@@ -113,6 +113,10 @@ void Application::setup() {
     // 8. Run board self-test (I2C, MCP, Buttons, LEDs, SPI, TFT)
     App::BoardSelfTest::run();
     
+    // Add a short delay to keep the splash screen visible and avoid visual glitches
+    // before the UiManager and ProvisioningScreen take over.
+    delay(1500);
+    
     // Initialize SD Card right after self-test but before services that need it
     Drivers::SdCard::getInstance().begin();
     
